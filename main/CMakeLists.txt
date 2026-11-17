@@ -38,6 +38,7 @@ file(GLOB WORKBUDDY_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/workbuddy/*.cc"
 
 file(GLOB APP_STORE_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/app_store/*.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/display/screen/app_store_screen/*.cc")
+file(GLOB NOVELIA_SCREEN_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/display/screen/novelia_screen/*.cc")
 
 file(GLOB HOME_SCREEN_SRCS
     "${CMAKE_CURRENT_SOURCE_DIR}/display/screen/home_screen/*.cc"
@@ -194,6 +195,7 @@ idf_component_register(
         ${OTA_UI_SRCS}
         ${HOME_SCREEN_SRCS}
         ${APP_STORE_SRCS}
+        ${NOVELIA_SCREEN_SRCS}
         ${WORKBUDDY_SRCS}
         ${SETTINGS_SCREEN_SRCS}
         ${BLUETOOTH_SCREEN_SRCS}
@@ -256,7 +258,7 @@ idf_component_register(
         mbedtls esp_timer efuse espcoredump 78__uart-uhci espressif__iot_eth esp_driver_cam esp_driver_i2c
     PRIV_REQUIRES
         esp_driver_usb_serial_jtag
-        bt elf_loader
+        bt elf_loader proxy_transport
         esp-wifi-connect esp-ml307 espressif__cjson 78__esp-opus-encoder 78__esp-opus esp_driver_jpeg
 )
 

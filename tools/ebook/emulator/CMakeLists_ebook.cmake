@@ -57,3 +57,20 @@ endfunction()
 
 # 原生 SDL 模拟器（480×800）
 ebook_emulator_target(ebook_sim src/main_ebook.c)
+
+option(NOVELIA_UI_PREVIEW "Build headless Novelia UI checks" OFF)
+if(NOVELIA_UI_PREVIEW)
+    set(NOVELIA "${ESP_MAIN}/display/screen/novelia_screen")
+    add_executable(novelia_preview
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../../tests/novelia/ui_preview/preview.cc" "${NOVELIA}/novelia_ui.cc"
+        "${ESP_MAIN}/display/screen/settings_screen/settings_common.cc"
+        "${ESP_MAIN}/display/ui_qrcode.cc" "${ESP_MAIN}/display/font/font_awesome_30_1.c"
+        "${ESP_MAIN}/reader/text_encoding.cc"
+        src/font/fontpack_lvgl_emulator.cc src/font/font_loader_emulator.c)
+    target_compile_definitions(novelia_preview PRIVATE EBOOK_EMULATOR=1)
+    target_compile_options(novelia_preview PRIVATE -UNDEBUG)
+    target_include_directories(novelia_preview PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../../../tests/novelia/ui_preview/stubs"
+        ${EBOOK_INCLUDES} "${ESP_MAIN}" "${ESP_MAIN}/display" "${ESP_MAIN}/display/font"
+        "${ESP_MAIN}/display/screen" "${NOVELIA}" /usr/include/cjson)
+    target_link_libraries(novelia_preview PRIVATE lvgl m)
+endif()

@@ -7,6 +7,7 @@
 #include "assets/lang_log.h"
 #include "assets/lang_haptic.h"
 #include "assets/lang_network.h"
+#include "assets/lang_novelia.h"
 #include "assets/lang_charging.h"
 #include "assets/lang_wallpaper.h"
 #include "assets/lang_bluetooth.h"
@@ -99,6 +100,104 @@
     X(YUNXIN_BINDING_CHECKING, "正在检查设备绑定，请稍候…", "Checking device link. Please wait...") \
     X(YUNXIN_BINDING_SCAN, "请使用小程序扫码绑定设备\n完成绑定后即可使用此功能", "Scan with the mini program to link your device.\nThis feature is available once linking is complete.") \
     X(YUNXIN_BINDING_RETRY, "暂时无法确认设备绑定，正在重试\n请保持网络连接", "Unable to confirm the device link. Retrying...\nKeep your device connected to Wi-Fi.") \
+    X(NOVELIA_BACK, "返回", "Back") \
+    X(NOVELIA_SETTINGS, "设置", "Settings") \
+    X(NOVELIA_FROM_FIRST, "从第一章开始", "Start from chapter one") \
+    X(NOVELIA_START_READING, "开始阅读", "Start reading") \
+    X(NOVELIA_CONTINUE_READING, "继续阅读", "Continue reading") \
+    X(NOVELIA_LOGIN_TO_VIEW, "登录后查看收藏", "Log in to view favorites") \
+    X(NOVELIA_NO_ITEMS, "暂无内容", "No items") \
+    X(NOVELIA_LOGIN_ON_PHONE, "在手机上完成账号登录", "Complete sign-in on your phone") \
+    X(NOVELIA_SCAN_LOGIN, "扫码登录", "Scan to log in") \
+    X(NOVELIA_REFRESH, "刷新", "Refresh") \
+    X(NOVELIA_UNNAMED, "未命名", "Untitled") \
+    X(NOVELIA_LAST_READ, "上次", "Last read") \
+    X(NOVELIA_PAGE_FMT, "第 %d 页", "Page %d") \
+    X(NOVELIA_ACCOUNT_CONNECTION, "账号与连接", "Account & connection") \
+    X(NOVELIA_ACCOUNT_FMT, "当前登录：%s", "Logged in: %s") \
+    X(NOVELIA_LOGGED_OUT, "未登录", "Not logged in") \
+    X(NOVELIA_PROXY_FMT, "当前代理：%s", "Proxy: %s") \
+    X(NOVELIA_PROXY_DIRECT, "未启用（直连）", "Disabled (direct)") \
+    X(NOVELIA_PROXY_UNCONFIGURED, "Trojan（未配置）", "Trojan (not configured)") \
+    X(NOVELIA_PHONE_SETUP, "通过 WiFi 配置账户与代理设置", "Set up account & proxy via Wi-Fi") \
+    X(NOVELIA_LOGOUT, "退出登录", "Log out") \
+    X(NOVELIA_READING_EXPERIENCE, "阅读体验", "Reading experience") \
+    X(NOVELIA_PREFETCH, "下一章预取", "Prefetch next chapter") \
+    X(NOVELIA_ON, "开启", "On") \
+    X(NOVELIA_OFF, "关闭", "Off") \
+    X(NOVELIA_PREFETCH_HINT, "提前缓存下一章，方便翻章时快速阅读", "Cache the next chapter for faster reading") \
+    X(NOVELIA_SCAN_SETUP, "扫码填写节点配置并登录 Novelia", "Scan to set up your proxy and sign in") \
+    X(NOVELIA_OPEN_LOGIN, "打开登录页面", "Open sign-in page") \
+    X(NOVELIA_NEW_QR, "重新生成二维码", "Generate a new QR code") \
+    X(NOVELIA_PROXY_SAVED, "代理设置已保存", "Proxy settings saved") \
+    X(NOVELIA_PROXY_TEST_OK, "连接成功；点击「保存代理」后生效", "Connected. Save the proxy settings to apply them.") \
+    X(NOVELIA_FORM_LOGIN_OK, "登录成功，请返回设备", "Logged in. Return to the device.") \
+    X(NOVELIA_FORM_INVALID, "无效操作", "Invalid action") \
+    X(NOVELIA_CACHE_TITLE, "本地缓存", "Local cache") \
+    X(NOVELIA_CACHE_HINT, "点「统计缓存」查看占用", "Measure cache to check storage usage") \
+    X(NOVELIA_CACHE_MB_FMT, "已使用 %.1f MB，共 %d 个文件", "Used %.1f MB in %d files") \
+    X(NOVELIA_CACHE_KB_FMT, "已使用 %.1f KB，共 %d 个文件", "Used %.1f KB in %d files") \
+    X(NOVELIA_CACHE_EMPTY, "无缓存", "No cache") \
+    X(NOVELIA_CACHE_CLEARED, "缓存已清空", "Cache cleared") \
+    X(NOVELIA_CACHE_CLEAR_FAILED, "删除缓存失败，请检查 SD 卡", "Could not clear cache. Check the SD card.") \
+    X(NOVELIA_CACHE_MEASURE_FAILED, "统计缓存失败，请检查 SD 卡", "Could not measure cache. Check the SD card.") \
+    X(NOVELIA_CACHE_MEASURE, "统计缓存", "Measure cache") \
+    X(NOVELIA_CACHE_CLEAR, "删除缓存", "Clear cache") \
+    X(NOVELIA_FAVORITES_INVALID, "收藏夹响应格式错误", "Unexpected favorites data") \
+    X(NOVELIA_FOLDER_ID_MISSING, "收藏夹标识缺失", "Favorite folder has no id") \
+    X(NOVELIA_FOLDER_UNNAMED, "收藏夹", "Favorites") \
+    X(NOVELIA_NOVELS_INVALID, "小说列表响应格式错误", "Unexpected novel list data") \
+    X(NOVELIA_NOVEL_ID_MISSING, "小说标识缺失", "Novel has no id") \
+    X(NOVELIA_TOC_INVALID, "小说目录响应格式错误", "Unexpected chapter list data") \
+    X(NOVELIA_LOGIN_RESPONSE_INVALID, "无效登录响应", "Unexpected sign-in response") \
+    X(NOVELIA_CREDENTIALS_REQUIRED, "请输入账号和密码", "Enter the account and password") \
+    X(NOVELIA_NO_SD, "请插入 SD 卡并关闭 U 盘传输", "Insert the SD card and turn off USB transfer") \
+    X(NOVELIA_SAVE_FAILED, "无法保存 SD 文件", "Could not save to the SD card") \
+    X(NOVELIA_PROXY_INCOMPLETE, "请填写 Trojan 服务器、端口和密码", "Fill in the Trojan server, port and password") \
+    X(NOVELIA_TRANSLATION_UNSUPPORTED, "不支持的翻译", "Unsupported translation") \
+    X(NOVELIA_TRANSLATION_UNAVAILABLE, "所选翻译尚不可用，请切换翻译", "This translation is not available yet") \
+    X(NOVELIA_TRANSLATION_AVAILABLE_FMT, "所选翻译尚不可用，可切换为：%s", "This translation is not available. Choose: %s") \
+    X(NOVELIA_TRANSLATION_SOURCE, "原文", "Original") \
+    X(NOVELIA_CHAPTER_DIR_FAILED, "无法创建章节目录", "Could not create the chapter work directory") \
+    X(NOVELIA_CHAPTER_TEXT_FAILED, "章节正文写入失败", "Could not write the chapter text") \
+    X(NOVELIA_CHAPTER_SAVE_FAILED, "章节写入失败，请检查 SD 卡", "Could not save the chapter. Check the SD card.") \
+    X(NOVELIA_IMAGE_ALT, "插图", "Illustration") \
+    X(NOVELIA_IMAGE_PLACEHOLDER, "[插图下载失败或格式不支持]", "[Illustration unavailable]") \
+    X(NOVELIA_FOLDERS_SUBTITLE, "我的收藏夹", "My favorites") \
+    X(NOVELIA_NOVELS_HEADING, "收藏小说", "Novels") \
+    X(NOVELIA_TOC_HEADING, "小说目录", "Chapters") \
+    X(NOVELIA_SETTINGS_HEADING, "Novelia 设置", "Novelia settings") \
+    X(NOVELIA_LOGIN_HEADING, "手机登录", "Phone sign-in") \
+    X(NOVELIA_LOGIN_HINT, "手机与设备连接同一 Wi-Fi", "Connect your phone to the same Wi-Fi") \
+    X(NOVELIA_LOADING_FOLDERS, "正在读取收藏夹…", "Loading favorites…") \
+    X(NOVELIA_LOADING_NOVELS, "正在读取小说…", "Loading novels…") \
+    X(NOVELIA_LOADING_TOC, "正在读取目录…", "Loading chapters…") \
+    X(NOVELIA_LOADING_CHAPTER, "正在下载章节…", "Downloading chapter…") \
+    X(NOVELIA_FIRST_CHAPTER, "已是第一章", "This is the first chapter") \
+    X(NOVELIA_LAST_CHAPTER, "已是最新章节", "This is the latest chapter") \
+    X(NOVELIA_STARTING_PORTAL, "正在启动手机登录页…", "Starting the phone sign-in page…") \
+    X(NOVELIA_PORTAL_READY, "请配置代理并登录", "Set up the proxy, then sign in") \
+    X(NOVELIA_PORTAL_CLOSED, "登录页面已关闭，请重新扫码", "The sign-in page closed. Scan again.") \
+    X(NOVELIA_PORTAL_FAILED, "登录服务启动失败，请重试", "Could not start the sign-in page. Try again.") \
+    X(NOVELIA_SETTING_SAVE_FAILED, "设置保存失败", "Could not save the setting") \
+    X(NOVELIA_LOGOUT_DONE, "已退出登录", "Logged out") \
+    X(NOVELIA_LOGOUT_FAILED, "退出登录保存失败", "Could not save the logout") \
+    X(NOVELIA_QUEUE_FULL, "工作队列已满，请稍后重试", "Busy, try again later") \
+    X(NOVELIA_QUEUE_CREATE_FAILED, "无法创建工作队列", "Could not create the work queue") \
+    X(NOVELIA_WORKER_FAILED, "无法启动 Novelia 工作任务", "Could not start the Novelia worker") \
+    X(NOVELIA_SD_BUSY, "SD 卡正在切换或待机，请稍后重试", "The SD card is busy. Try again.") \
+    X(NOVELIA_IMAGE_WRITE_FAILED, "章节插图写入失败，请检查 SD 卡", "Could not write chapter image. Check the SD card.") \
+    X(NOVELIA_HTTP_INVALID_REQUEST, "无效 HTTP 请求", "Invalid HTTP request") \
+    X(NOVELIA_HTTP_UNSUPPORTED_METHOD, "不支持的 HTTP 方法", "Unsupported HTTP method") \
+    X(NOVELIA_HTTP_RESPONSE_TOO_LARGE, "响应过大", "Response too large") \
+    X(NOVELIA_HTTP_PROTOCOL_ERROR, "协议错误或响应不完整", "Protocol error or incomplete response") \
+    X(NOVELIA_CONNECTION_FAILED_FMT, "连接失败：%d", "Connection failed: %d") \
+    X(NOVELIA_LOGIN_FAILED_FMT, "登录失败：%d", "Login failed: %d") \
+    X(NOVELIA_REQUEST_FAILED_FMT, "请求失败：%d", "Request failed: %d") \
+    X(NOVELIA_CANCELLED, "操作已取消", "Operation cancelled") \
+    X(NOVELIA_NETWORK_NOT_READY, "Wi-Fi 尚未连接，请检查网络", "Wi-Fi is not connected. Check the network.") \
+    X(NOVELIA_LOGIN_EXPIRED, "登录已失效，请扫码登录", "Session expired. Scan the code to log in.") \
+    X(NOVELIA_OFFLINE_CACHE, "（显示离线缓存）", " (showing offline cache)") \
     X(BOOK_FONT_DECREASE, "减小字号", "Smaller text") \
     X(BOOK_FONT_INCREASE, "增加字号", "Larger text") \
     X(BOOK_TURN_INTERVAL, "间隔", "Interval") \
