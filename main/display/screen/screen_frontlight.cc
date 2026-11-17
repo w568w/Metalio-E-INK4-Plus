@@ -331,8 +331,7 @@ void ScreenFrontlightShow() {
             display->GetBoundStatusBar().status_label == s_ui.panel_status_label) {
             auto status = s_ui.previous_status;
             if (status.status_label && !lv_obj_is_valid(status.status_label)) status = {};
-            display->BindStatusBar(status.status_label, status.notification_label, status.network_label,
-                                   status.battery_label, status.battery_pct_label, status.mute_label);
+            display->BindStatusBar(status);
         }
         s_ui = {};
     }, LV_EVENT_DELETE, nullptr);

@@ -34,7 +34,7 @@ static bool s_random_mode = false;
 // 全屏无顶栏：摘掉上一页状态栏指针，避免 UpdateStatusBar 写已释放对象
 static void ClearStatusBindings() {
     if (auto* disp = LvAdapterEpdiy::Instance()) {
-        disp->BindStatusBar(nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+        disp->BindStatusBar({});
     }
 }
 

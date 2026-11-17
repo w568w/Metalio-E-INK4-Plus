@@ -410,8 +410,12 @@ EpdStatusBar ScreenCreateStatusBar(lv_obj_t* scr) {
     lv_obj_add_flag(out.low_battery_popup, LV_OBJ_FLAG_HIDDEN);
 
     if (auto* disp = LvAdapterEpdiy::Instance()) {
-        disp->BindStatusBar(out.status_label, out.notification_label, out.network_label,
-                            out.battery_label, out.battery_pct_label, out.mute_label);
+        disp->BindStatusBar(out);
+        lv_obj_add_event_cb(out.bar, [](lv_event_t* event) {
+            if (auto* display = LvAdapterEpdiy::Instance()) {
+                display->UnbindStatusBar(static_cast<lv_obj_t*>(lv_event_get_target(event)));
+            }
+        }, LV_EVENT_DELETE, nullptr);
     }
 
     return out;
