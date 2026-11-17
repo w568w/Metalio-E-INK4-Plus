@@ -9,23 +9,30 @@
 using namespace proxy_transport;
 class FakeStream final : public Stream {
 public:
-    explicit FakeStream(std::string bytes) : bytes_(std::move(bytes)) {}
+    FakeStream(std::string bytes, std::string& request) : bytes_(std::move(bytes)), request_(request) {}
     int Read(void* p, size_t size) override {
         size_t n = std::min({size, size_t(3), bytes_.size()});
         std::memcpy(p, bytes_.data(), n); bytes_.erase(0, n); return n;
     }
-    int Write(const void*, size_t n) override { return std::min<size_t>(n, 7); }
+    int Write(const void* p, size_t n) override {
+        n = std::min<size_t>(n, 7);
+        request_.append(static_cast<const char*>(p), n);
+        return n;
+    }
 private:
     std::string bytes_;
+    std::string& request_;
 };
 class FakeDialer final : public Dialer {
 public:
     std::string bytes;
+    std::string request;
     int error = 0;
     Connection Dial(const Endpoint& endpoint, int64_t) override {
         if (error) return {nullptr, error};
         assert(endpoint.host == "example.test" && endpoint.port == 80);
-        return {std::make_unique<FakeStream>(bytes), 0};
+        request.clear();
+        return {std::make_unique<FakeStream>(bytes, request), 0};
     }
 };
 extern "C" void app_main() {
@@ -40,6 +47,14 @@ extern "C" void app_main() {
     auto result = Request(dialer, "GET", "http://example.test/path?q=a");
     assert(result.error_code == 0 && result.status == 200 && result.body == "abcde");
     assert(result.headers.size() == 3 && result.headers[2].second == "refresh-token=abc; Secure");
+    dialer.bytes = "HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n";
+    result = Request(dialer, "PUT", "http://example.test/user/read-history/syosetu/n1", "chapter-02",
+                     {{"Authorization", "Bearer test-token"}, {"Content-Type", "text/plain;charset=UTF-8"}});
+    assert(result.error_code == 0 && result.status == 204);
+    assert(dialer.request.rfind("PUT /user/read-history/syosetu/n1 HTTP/1.1\r\n", 0) == 0);
+    assert(dialer.request.find("Authorization: Bearer test-token\r\n") != std::string::npos);
+    assert(dialer.request.find("Content-Type: text/plain;charset=UTF-8\r\n") != std::string::npos);
+    assert(dialer.request.substr(dialer.request.find("\r\n\r\n") + 4) == "chapter-02");
     dialer.bytes = "HTTP/1.1 200 OK\r\nContent-Length: 8\r\n\r\nshort";
     result = Request(dialer, "GET", "http://example.test/"); assert(result.error_code == -EPROTO);
     dialer.bytes = "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\n12345";

@@ -63,6 +63,18 @@ std::vector<Item> Toc(const cJSON* response, std::string* error) {
     }
     return result;
 }
+std::string ResumeChapter(const std::vector<Item>& chapters, const std::string& local,
+                          const std::string& remote) {
+    // 本地阅读位置优先；失效或缺失时使用远程位置。
+    for (const auto& id : {local, remote}) {
+        if (id.empty())
+            continue;
+        for (const auto& chapter : chapters)
+            if (chapter.id == id)
+                return id;
+    }
+    return {};
+}
 std::string Quote(const std::string& text) {
     constexpr char hex[] = "0123456789ABCDEF";
     std::string result;
