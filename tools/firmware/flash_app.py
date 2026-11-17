@@ -68,8 +68,16 @@ def build_app(args, directory):
     elif not shutil.which("idf.py"):
         raise RuntimeError("请激活 ESP-IDF，或指定 --idf /path/to/esp-idf")
     print("[构建] 增量构建 app", flush=True)
+    # uv run 会把自己的 venv 排到 PATH 最前，export.sh 会拿它的 python 去拼 IDF 的
+    # 环境目录名，从而找不到。构建时把这一层摘掉，用系统 python。
+    environment = os.environ.copy()
+    venv = environment.pop("VIRTUAL_ENV", None)
+    if venv:
+        bin_dir = str(Path(venv) / "bin")
+        environment["PATH"] = os.pathsep.join(
+            entry for entry in environment.get("PATH", "").split(os.pathsep) if entry != bin_dir)
     with (directory / "flash-build.log").open("w") as log:
-        result = subprocess.run(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
+        result = subprocess.run(command, cwd=ROOT, env=environment, stdout=log, stderr=subprocess.STDOUT)
     if result.returncode:
         raise RuntimeError("构建失败，见 " + str(directory / "flash-build.log"))
 
