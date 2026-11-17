@@ -1,4 +1,5 @@
 #include "sd_log_writer.h"
+#include "sd_file.h"
 #include "sd_paths.h"
 #include "settings.h"
 #include "usb_virtual_disk.h"
@@ -174,20 +175,14 @@ bool ExportCrashLocked() {
     if (fflush(fp) != 0) ok = false;
     if (ok && fsync(fileno(fp)) != 0) ok = false;
     if (fclose(fp) != 0) ok = false;
-    // FatFS rename cannot replace an existing destination. Keep its old image
-    // until the new durable temporary file can be published; rollback on failure.
-    bool backed_up = false;
     if (ok) {
-        struct stat old{};
-        if (stat(SD_PATH_COREDUMP, &old) == 0) {
-            remove(SD_PATH_COREDUMP ".previous");
-            backed_up = rename(SD_PATH_COREDUMP, SD_PATH_COREDUMP ".previous") == 0;
-            if (!backed_up) ok = false;
+        const auto result = sd_file::ReplaceFile(SD_PATH_COREDUMP ".tmp", SD_PATH_COREDUMP,
+                                                 SD_PATH_COREDUMP ".previous");
+        if (!result.Ok()) {
+            ESP_LOGE("SdLog", "crash export failed: %s errno=%d restore_errno=%d",
+                     result.stage, result.error, result.rollback_error);
+            ok = false;
         }
-    }
-    if (ok && rename(SD_PATH_COREDUMP ".tmp", SD_PATH_COREDUMP) != 0) {
-        ok = false;
-        if (backed_up) rename(SD_PATH_COREDUMP ".previous", SD_PATH_COREDUMP);
     }
     if (!ok) { remove(SD_PATH_COREDUMP ".tmp"); return false; }
     s_crash_erase_pending = true;

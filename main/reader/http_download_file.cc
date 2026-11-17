@@ -10,6 +10,7 @@
 #include "board.h"
 #include "application.h"
 #include "sd_paths.h"
+#include "sd_file.h"
 #include "sd_data_layout.h"
 #include "sd_access.h"
 
@@ -384,14 +385,10 @@ bool CommitDownloadedFile(const std::string& tmp_path, const std::string& final_
         err_out = Lang::Strings::CLOUD_FILE_EXISTS;
         return false;
     }
-    if (exists && rename(final_path.c_str(), backup.c_str()) != 0) {
-        err_out = Lang::Strings::CLOUD_SAVE_FAIL;
-        return false;
-    }
-    if (rename(tmp_path.c_str(), final_path.c_str()) != 0) {
-        if (exists && rename(backup.c_str(), final_path.c_str()) != 0) {
-            ESP_LOGE(TAG, "operation=commit stage=restore_original result=failed errno=%d", errno);
-        }
+    const auto committed = sd_file::ReplaceFile(tmp_path, final_path, backup);
+    if (!committed.Ok()) {
+        ESP_LOGE(TAG, "commit failed: %s errno=%d restore_errno=%d",
+                 committed.stage, committed.error, committed.rollback_error);
         err_out = Lang::Strings::CLOUD_SAVE_FAIL;
         return false;
     }

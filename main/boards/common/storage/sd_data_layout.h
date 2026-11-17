@@ -3,7 +3,7 @@
 #include <string>
 
 namespace sd_data {
-/** @brief 生成书籍辅助数据路径；已有数据沿用原位置，无数据时使用新目录。 */
+/** @brief 生成 SD 书籍辅助数据路径；本地书库沿用现有映射，应用数据目录内的外部来源使用独立命名空间。 */
 std::string BookPath(const char* book, const char* suffix);
 /** @brief 生成壁纸名称元数据路径；已有数据沿用原位置，无数据时使用新目录。 */
 std::string WallpaperMetaPath(const char* wallpaper);
