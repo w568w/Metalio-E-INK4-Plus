@@ -71,21 +71,11 @@ public:
     void UpdateStatusBar(bool update_all = false) override;
 
     /** @brief 绑定当前页状态栏控件 */
-    void BindStatusBar(lv_obj_t* status_label, lv_obj_t* notification_label,
-                       lv_obj_t* network_label, lv_obj_t* battery_label,
-                       lv_obj_t* battery_pct_label, lv_obj_t* mute_label);
+    void BindStatusBar(const EpdStatusBar& status);
+    /** @brief 解除该状态栏的绑定；状态栏销毁时由删除回调调用。 */
+    void UnbindStatusBar(lv_obj_t* owner_bar);
     /** @brief 获取当前绑定的状态栏标签，供临时面板关闭时恢复绑定 */
     EpdStatusBar GetBoundStatusBar() const;
-
-    /**
-     * @brief 兼容 397 BindStatusWidgets 参数序
-     * @note network, mute, battery, status, notification, low_battery_popup[, battery_pct]
-     */
-    void BindStatusWidgets(lv_obj_t* network, lv_obj_t* mute, lv_obj_t* battery, lv_obj_t* status,
-                           lv_obj_t* notification, lv_obj_t* /*low_battery_popup*/,
-                           lv_obj_t* battery_pct = nullptr) {
-        BindStatusBar(status, notification, network, battery, battery_pct, mute);
-    }
 
     /** @brief 下一帧强制 GC16（仅打标，不同步 lv_refr_now，避免阅读首帧嵌套全刷打满 CPU） */
     void RequestFullOnNextCommit();
@@ -149,6 +139,7 @@ private:
     void RestoreStatusWidgetsLocked();
 
     bool lvgl_ready_ = false;
+    lv_obj_t* status_owner_bar_ = nullptr;
     lv_obj_t* status_label_ = nullptr;
     lv_obj_t* notification_label_ = nullptr;
     lv_obj_t* network_label_ = nullptr;

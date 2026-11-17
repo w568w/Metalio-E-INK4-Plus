@@ -60,7 +60,7 @@ static uint32_t s_counter = 0;
 static void ClearStatusBindings() {
     // 全屏无顶栏：必须摘掉上一页控件指针，否则 1Hz UpdateStatusBar 写已释放对象搞坏 LVGL
     if (auto* disp = LVAdapterDisplay::Instance()) {
-        disp->BindStatusWidgets(nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+        disp->BindStatusBar({});
     }
 }
 

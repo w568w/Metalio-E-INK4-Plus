@@ -243,7 +243,7 @@ static void BuildEdge(lv_obj_t* parent, int side, const char* name) {
 
 lv_obj_t* SettingsTestMarginScreen::Create() {
     if (auto* display = LvAdapterEpdiy::Instance()) {
-        display->BindStatusBar(nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+        display->BindStatusBar({});
     }
     ScreenSetIsHome(false);
     auto* screen = lv_obj_create(nullptr);

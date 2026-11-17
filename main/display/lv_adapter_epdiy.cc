@@ -1123,7 +1123,7 @@ bool LvAdapterEpdiy::ShowPoweredOffScreen() {
     }
     bool have_img = work.have_img;
 
-    BindStatusWidgets(nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+    BindStatusBar({});
     if (work.overlay) {
         have_img = have_img && WallpaperFrame_Draw(work.img, work.alpha);
         if (!have_img) have_img = WallpaperFrame_Restore();
@@ -1240,6 +1240,7 @@ void LvAdapterEpdiy::RestoreStatusWidgetsLocked() {
 
 EpdStatusBar LvAdapterEpdiy::GetBoundStatusBar() const {
     EpdStatusBar status;
+    status.bar = status_owner_bar_;
     status.status_label = status_label_;
     status.notification_label = notification_label_;
     status.network_label = network_label_;
@@ -1249,16 +1250,23 @@ EpdStatusBar LvAdapterEpdiy::GetBoundStatusBar() const {
     return status;
 }
 
-void LvAdapterEpdiy::BindStatusBar(lv_obj_t* status_label, lv_obj_t* notification_label,
-                                   lv_obj_t* network_label, lv_obj_t* battery_label,
-                                   lv_obj_t* battery_pct_label, lv_obj_t* mute_label) {
-    status_label_ = status_label;
-    notification_label_ = notification_label;
-    network_label_ = network_label;
-    battery_label_ = battery_label;
-    battery_pct_label_ = battery_pct_label;
-    mute_label_ = mute_label;
+void LvAdapterEpdiy::BindStatusBar(const EpdStatusBar& status) {
+    status_owner_bar_ = status.bar;
+    status_label_ = status.status_label;
+    notification_label_ = status.notification_label;
+    network_label_ = status.network_label;
+    battery_label_ = status.battery_label;
+    battery_pct_label_ = status.battery_pct_label;
+    mute_label_ = status.mute_label;
     RestoreStatusWidgetsLocked();
+}
+
+void LvAdapterEpdiy::UnbindStatusBar(lv_obj_t* owner_bar) {
+    // 旧页面异步删除时，新页面可能已绑定自己的状态栏。
+    if (status_owner_bar_ != owner_bar) return;
+    status_owner_bar_ = nullptr;
+    status_label_ = notification_label_ = network_label_ = nullptr;
+    battery_label_ = battery_pct_label_ = mute_label_ = nullptr;
 }
 
 bool LvAdapterEpdiy::Lock(int timeout_ms) {

@@ -62,7 +62,7 @@ static void EnsureStandbyPortrait() {
 
 static void ClearStatusBindings() {
     if (auto* disp = LVAdapterDisplay::Instance()) {
-        disp->BindStatusWidgets(nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+        disp->BindStatusBar({});
     }
 }
 
