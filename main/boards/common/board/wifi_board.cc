@@ -78,7 +78,7 @@ bool WaitPanelThenRadioOk(int timeout_ms) {
     if (!Display::IsPanelBusy()) {
         return true;
     }
-    const int wait_ms = timeout_ms <= 0 ? 50 : (timeout_ms > 2000 ? 2000 : timeout_ms);
+    const int wait_ms = timeout_ms <= 0 ? 50 : timeout_ms;
     return Display::WaitPanelIdle(wait_ms);
 }
 
@@ -182,7 +182,8 @@ void WifiBoard::RefreshNetworkWaitDeadline(int timeout_ms) {
     if (wifi.IsConnected()) {
         return;
     }
-    if (!WaitPanelThenRadioOk(timeout_ms > 0 ? timeout_ms : 50)) {
+    constexpr int kRefreshPanelWaitMaxMs = 2000;
+    if (!WaitPanelThenRadioOk(timeout_ms > 0 ? std::min(timeout_ms, kRefreshPanelWaitMaxMs) : 50)) {
         ESP_LOGW(TAG, "RefreshNetworkWaitDeadline: defer radio (panel busy)");
         return;
     }
@@ -247,7 +248,7 @@ bool WifiBoard::EnsureNetworkReady(int timeout_ms) {
         return false;
     }
 
-    // 墨水落墨中勿起/扫射频：流式行队列缓冲短，WiFi bring-up 易 underrun
+    // 面板静默与联网共享调用方预算；短时保网刷新另在调用点限制面板等待。
     if (!WaitPanelThenRadioOk(timeout_ms)) {
         if (log_wait) {
             ESP_LOGW(TAG, "EnsureNetworkReady: defer radio (panel busy) task=%s",
