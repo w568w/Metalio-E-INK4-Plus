@@ -26,6 +26,7 @@
 #include <cstdio>
 #include <cstring>
 #include <unistd.h>
+#include <utility>
 #include <esp_log.h>
 #include <esp_heap_caps.h>
 #include <esp_timer.h>
@@ -52,6 +53,7 @@ struct OpenDoneMsg {
 };
 
 struct OpenWorkerArg {
+    StartAt start = StartAt::Saved;
     uint32_t token = 0;
     reader::BookInfo info;  // 拷贝，避免 Create 重建书库时 vector 失效
 };
@@ -215,6 +217,10 @@ static void AsyncOpenDone(void* user_data) {
     RenderReaderPage();
     if (show_settings) ShowReadSettingsSheet(false);
     BeginReadingTimeTracking();
+    if (st.reader.IsHostSession()) {
+        st.reader.launch.start = StartAt::Saved;
+        if (st.reader.launch.opened) st.reader.launch.opened();
+    }
     delete msg;
 }
 
@@ -238,6 +244,9 @@ void OpenBookWorker(void* arg) {
         st.reader.session->SetOpenProgress(OnOpenProgress,
                                            reinterpret_cast<void*>(static_cast<uintptr_t>(ctx->token)));
         ok = st.reader.session->Open(ctx->info);
+        constexpr int kEndProgressPermille = 1000;
+        if (ok && ctx->start != StartAt::Saved)
+            ok = st.reader.session->GoToReadingProgress(ctx->start == StartAt::First ? 0 : kEndProgressPermille);
         st.reader.session->SetOpenProgress(nullptr, nullptr);
         // 打开路径统一补旁路封面，供书架/详情/目录取用（失败不阻断阅读）
         if (ok && ctx->token == st.reader.open_token.load() &&
@@ -267,18 +276,25 @@ void OpenBookWorker(void* arg) {
 
 void StartOpenWorker(int book_index) {
     auto& st = Book_State();
-    if (st.reader.standby_paused) return;
-    if (st.reader.opening.load()) {
-        const char* path = (book_index >= 0 && book_index < static_cast<int>(st.shelf.books.size()))
-                               ? st.shelf.books[static_cast<size_t>(book_index)].path.c_str()
-                               : "-";
-        ESP_LOGW(TAG, "StartOpenWorker ignored: already opening token=%u req_idx=%d path=%s",
-                 static_cast<unsigned>(st.reader.open_token.load()), book_index, path);
+    if (book_index < 0 || book_index >= static_cast<int>(st.shelf.books.size())) {
+        ESP_LOGE(TAG, "StartOpenWorker bad index=%d books=%u", book_index,
+                 static_cast<unsigned>(st.shelf.books.size()));
+        Book_ShowMessage(st.reader.content, Lang::Strings::BOOK_OPEN_FAILED);
         return;
     }
-    if (book_index < 0 || book_index >= static_cast<int>(st.shelf.books.size()) || !st.reader.session) {
-        ESP_LOGE(TAG, "StartOpenWorker bad state idx=%d books=%u session=%d", book_index,
-                 static_cast<unsigned>(st.shelf.books.size()), st.reader.session ? 1 : 0);
+    StartOpenWorker(st.shelf.books[static_cast<size_t>(book_index)]);
+}
+
+void StartOpenWorker(reader::BookInfo info, StartAt start) {
+    auto& st = Book_State();
+    if (st.reader.standby_paused) return;
+    if (st.reader.opening.load()) {
+        ESP_LOGW(TAG, "StartOpenWorker ignored: already opening token=%u path=%s",
+                 static_cast<unsigned>(st.reader.open_token.load()), info.path.c_str());
+        return;
+    }
+    if (!st.reader.session) {
+        ESP_LOGE(TAG, "StartOpenWorker missing session path=%s", info.path.c_str());
         Book_ShowMessage(st.reader.content, Lang::Strings::BOOK_OPEN_FAILED);
         return;
     }
@@ -286,12 +302,13 @@ void StartOpenWorker(int book_index) {
     const uint32_t token = st.reader.open_token.fetch_add(1) + 1;
     st.reader.opening.store(true);
     st.reader.deferred_cleanup = false;
-    st.reader.opening_format = st.shelf.books[static_cast<size_t>(book_index)].format;
+    st.reader.opening_format = info.format;
     ShowOpenProgress(0);
 
     auto* ctx = new OpenWorkerArg{};
     ctx->token = token;
-    ctx->info = st.shelf.books[static_cast<size_t>(book_index)];
+    ctx->info = std::move(info);
+    ctx->start = start;
     ESP_LOGI(TAG, "StartOpenWorker token=%u fmt=%d path=%s", static_cast<unsigned>(token),
              static_cast<int>(ctx->info.format), ctx->info.path.c_str());
     BaseType_t created = xTaskCreatePinnedToCoreWithCaps(
@@ -341,6 +358,12 @@ void BackToLibraryAsync(void* /*user_data*/) {
 }
 
 void BackToDetailAsync(void* /*user_data*/) {
+    auto& reader = Book_State().reader;
+    if (reader.HasHost()) {
+        if (reader.launch.returning) reader.launch.returning();
+        ScreenNavigateBack();
+        return;
+    }
     ReleaseReaderSessionForLeave();
     BackToLibraryAsync(nullptr);
 }

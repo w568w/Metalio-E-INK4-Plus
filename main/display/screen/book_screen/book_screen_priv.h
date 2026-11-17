@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include "book_screen/reader/book_reader_hooks.h"
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -108,7 +109,19 @@ struct BookUiState {
     } detail;
 
     struct Reader {
+        ReaderLaunch launch; // 当前宿主阅读请求。
+        ReaderLaunch pending_launch; // 等待导航真正执行期间暂存的请求。
+        lv_obj_t* (*rebuild_host_reader)() = nullptr;
         std::unique_ptr<reader::BookSession> session;
+        void ClearHost() {
+            launch = {};
+            pending_launch = {};
+            rebuild_host_reader = nullptr;
+        }
+        bool HasHost() const { return !launch.book.path.empty(); }
+        bool IsHostSession() const {
+            return HasHost() && session && session->Info().path == launch.book.path;
+        }
         lv_obj_t* read_scr = nullptr;
         lv_obj_t* content = nullptr;
         lv_obj_t* text_raster_image = nullptr; // Cleared by the image's DELETE event.

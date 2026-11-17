@@ -427,7 +427,8 @@ bool QueueReaderPageTurn(int dir) {
     if (dir != 0) ReaderAutoTurnManualInput();
     auto& st = Book_State();
     if (dir == 0 || !st.reader.session || !st.reader.session->IsOpen()) return false;
-    if (!ReaderPageWorkPending() && (dir > 0 ? !st.reader.session->HasNextPage() : !st.reader.session->HasPrevPage())) return false;
+    if (!ReaderPageWorkPending() && (dir > 0 ? !st.reader.session->HasNextPage() : !st.reader.session->HasPrevPage()))
+        return st.reader.launch.adjacent && st.reader.launch.adjacent(dir > 0 ? 1 : -1);
     return RequestReaderNavigation(reader::BookSession::NavigationKind::kDelta, dir);
 }
 
@@ -502,6 +503,10 @@ void WarnReaderWorkersBusy(const char* where) {
 }
 
 // 导航确定执行后清理当前正文；等待或取消导航时保留活动页面的会话和字库。
+void ClearReaderHost() {
+    Book_State().reader.ClearHost();
+}
+
 void ReleaseReaderForSystemHome() {
     auto* read_scr = Book_State().reader.read_scr;
     if (read_scr != nullptr && read_scr == lv_screen_active()) {
@@ -582,6 +587,7 @@ void ReleaseReaderSessionForLeave() {
 
 lv_obj_t* ResumeReaderScreen() {
     auto& st = Book_State();
+    if (st.reader.HasHost()) return st.reader.rebuild_host_reader();
     // 解析尚未结束 / 后台计页未结束：退回书库，避免与 worker 抢 session/font
     if (ReaderWorkersBusy()) {
         WarnReaderWorkersBusy("ResumeReaderScreen");
@@ -607,32 +613,38 @@ lv_obj_t* ResumeDetailScreen() {
     return CreateReaderScreen(st.shelf.books[static_cast<size_t>(st.shelf.selected)]);
 }
 
+lv_obj_t* BookWaitForCleanup(const char* key, VkKeyScreenDesc keys) {
+    if (!ReaderWorkersBusy()) FinishDeferredCleanup();
+    if (!ReaderWorkersBusy() && !Book_State().reader.deferred_cleanup) return nullptr;
+    auto* screen = lv_obj_create(nullptr);
+    Book_DisableScroll(screen);
+    Book_ShowMessage(screen, Lang::Strings::BOOK_LOADING, Book_ListFont());
+    struct Wait { lv_obj_t* screen; ScreenFactory resume; };
+    auto* wait = new Wait{screen, keys.factory};
+    auto* timer = lv_timer_create([](lv_timer_t* timer) {
+        auto& wait = *static_cast<Wait*>(lv_timer_get_user_data(timer));
+        auto* screen = wait.screen;
+        if (lv_screen_active() != screen || ReaderWorkersBusy() || !EpdTryBeginUiRender()) return;
+        struct UiGuard { ~UiGuard() { EpdEndUiRender(); } } guard;
+        FinishDeferredCleanup();
+        if (!Book_State().reader.deferred_cleanup) {
+            ScreenLoadReplace(wait.resume());
+        }
+    }, 50, wait);
+    if (!timer) { delete wait; lv_obj_delete(screen); return BookScreen::Create(); }
+    lv_obj_add_event_cb(screen, [](lv_event_t* event) {
+        auto* timer = static_cast<lv_timer_t*>(lv_event_get_user_data(event));
+        delete static_cast<Wait*>(lv_timer_get_user_data(timer));
+        lv_timer_delete(timer);
+    }, LV_EVENT_DELETE, timer);
+    VkKey_AttachScreen(screen, key, keys);
+    return screen;
+}
+
 static lv_obj_t* ResumeReadingSettings() {
     auto& st = Book_State();
-    if (!ReaderWorkersBusy()) FinishDeferredCleanup();
-    if (ReaderWorkersBusy() || st.reader.deferred_cleanup) {
-        // 快速退出壁纸时，等待旧会话的工作任务收尾，再恢复正文与设置。
-        auto* screen = lv_obj_create(nullptr);
-        Book_DisableScroll(screen);
-        Book_ShowMessage(screen, Lang::Strings::BOOK_LOADING, Book_ListFont());
-        auto* timer = lv_timer_create([](lv_timer_t* timer) {
-            auto* origin = static_cast<lv_obj_t*>(lv_timer_get_user_data(timer));
-            if (lv_screen_active() != origin || ReaderWorkersBusy() || !EpdTryBeginUiRender()) return;
-            struct UiGuard { ~UiGuard() { EpdEndUiRender(); } } guard;
-            FinishDeferredCleanup();
-            if (Book_State().reader.deferred_cleanup) return;
-            ScreenLoadReplace(ResumeReadingSettings());
-        }, 50, screen);
-        if (!timer) {
-            lv_obj_delete(screen);
-            return BookScreen::Create();
-        }
-        lv_obj_add_event_cb(screen, [](lv_event_t* e) {
-            lv_timer_delete(static_cast<lv_timer_t*>(lv_event_get_user_data(e)));
-        }, LV_EVENT_DELETE, timer);
-        VkKey_AttachScreen(screen, kScreenRead, BookAiLongPressDesc(ResumeReadingSettings));
-        return screen;
-    }
+    if (auto* waiting = BookWaitForCleanup(kScreenRead,
+                                         BookAiLongPressDesc(ResumeReadingSettings))) return waiting;
     auto* screen = ResumeReaderScreen();
     if (screen == st.reader.read_scr) st.reader.settings_resume_after_open = true;
     return screen;

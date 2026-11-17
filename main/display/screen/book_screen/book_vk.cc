@@ -371,6 +371,7 @@ std::optional<sd_access::Transaction> s_reader_standby_hold; // 资源收尾完�
 }
 
 void BookScreen::OnEnterStandby() {
+    if (Book_State().reader.launch.suspending) Book_State().reader.launch.suspending();
     StopReaderAutoOrient();
     s_ttf_return_after_standby |= Book_State().ttf.ttf_mode != BookUiState::TtfMode::kNone;
     TtfPanelClose();

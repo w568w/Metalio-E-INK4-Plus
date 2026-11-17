@@ -232,7 +232,7 @@ void ReopenReaderAfterPrefsChange() {
     if (st.reader.opening.load()) {
         return;
     }
-    if (st.shelf.selected < 0 || st.shelf.selected >= static_cast<int>(st.shelf.books.size())) {
+    if (!st.reader.session || !st.reader.session->IsOpen()) {
         return;
     }
     // A token only rejects callbacks; it cannot stop a worker already reading session/font.
@@ -281,6 +281,7 @@ void ReopenReaderAfterPrefsChange() {
     }
     const lv_coord_t vw = st.reader.viewport_w;
     const lv_coord_t vh = st.reader.viewport_h;
+    const reader::BookInfo info = st.reader.session->Info();
 
     if (!RetireReaderSession()) {
         st.reader.prefs_reopen_timer = lv_timer_create(OnPrefsReopenReady, 50, nullptr);
@@ -291,7 +292,7 @@ void ReopenReaderAfterPrefsChange() {
     st.reader.session = std::make_unique<reader::BookSession>();
     BindSessionLayoutPrefs(*st.reader.session);
     st.reader.session->SetViewport(vw, vh);
-    StartOpenWorker(st.shelf.selected);
+    StartOpenWorker(info);
 }
 
 void OnTocRowClicked(lv_event_t* e) {

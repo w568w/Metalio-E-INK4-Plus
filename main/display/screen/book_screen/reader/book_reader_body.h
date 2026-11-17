@@ -17,7 +17,7 @@ constexpr uint32_t kListCoverWorkerStack = 16 * 1024;
 constexpr uint32_t kReadTimeCheckpointMs = 45000;
 
 /** @brief 创建正文阅读页 */
-lv_obj_t* CreateReaderScreen(const reader::BookInfo& info);
+lv_obj_t* CreateReaderScreen(reader::BookInfo info);
 /** @brief 从目录/设置等返回已有正文屏 */
 lv_obj_t* ResumeReaderScreen();
 /** @brief 渲染当前正文页 */
