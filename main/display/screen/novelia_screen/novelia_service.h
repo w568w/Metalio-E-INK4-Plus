@@ -15,6 +15,7 @@ public:
     bool Init();
     bool Ready();
     std::function<bool()> network_ready;
+    std::function<bool()> network_present; // 只查询当前连接，不触发联网或提示。
     std::function<bool()> cancelled;
     std::string error;
     bool Configure(const cJSON* input);
@@ -28,7 +29,7 @@ public:
     std::string Root() const;
     std::string AccountRoot() const;
     std::string Last(const Item& novel);
-    void Shown(const Item& novel, const Item& chapter, const std::string& mode);
+    bool Shown(const Item& novel, const Item& chapter);
     bool SetTranslation(const std::string& mode);
     bool SetPrefetch(bool enabled);
     std::string ProxySummary() const;
@@ -44,8 +45,9 @@ private:
     Json config = Object(); // 仅串行 worker 访问。
     static std::unique_ptr<proxy_transport::Dialer> Dialer(const cJSON* config);
     Json ProxyConfig(const cJSON* input);
-    proxy_transport::Response Api(const std::string& method, const std::string& path, const std::string& body = {});
-    int NetworkStatus() const;
+    proxy_transport::Response Api(const std::string& method, const std::string& path,
+                                 const std::string& body = {}, bool wait_for_network = true);
+    int NetworkStatus(bool wait_for_network = true) const;
     bool Write(const std::string& path, const std::string& text) const;
     bool Persist();
 };

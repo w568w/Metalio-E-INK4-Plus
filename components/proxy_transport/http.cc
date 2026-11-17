@@ -94,7 +94,7 @@ Response Request(proxy_transport::Dialer& dialer, const std::string& method, con
         response.error_code = -EINVAL;
         return response;
     }
-    if (method != "GET" && method != "POST") {
+    if (method != "GET" && method != "POST" && method != "PUT") {
         response.error_code = -ENOTSUP;
         return response;
     }
@@ -119,7 +119,8 @@ Response Request(proxy_transport::Dialer& dialer, const std::string& method, con
     esp_http_client_config_t config{};
     config.url = url.c_str();
     config.transport = transport.get();
-    config.method = method == "POST" ? HTTP_METHOD_POST : HTTP_METHOD_GET;
+    config.method = method == "PUT" ? HTTP_METHOD_PUT
+                    : method == "POST" ? HTTP_METHOD_POST : HTTP_METHOD_GET;
     config.timeout_ms = timeout_ms;
     config.disable_auto_redirect = true;
     config.event_handler = Transport::Event;
@@ -134,7 +135,7 @@ Response Request(proxy_transport::Dialer& dialer, const std::string& method, con
     esp_http_client_set_header(client.get(), "Connection", "close");
     for (const auto& header : headers)
         esp_http_client_set_header(client.get(), header.first.c_str(), header.second.c_str());
-    if (method == "POST")
+    if (method == "POST" || method == "PUT")
         esp_http_client_set_post_field(client.get(), body.data(), body.size());
     const auto result = esp_http_client_perform(client.get());
     response.status = esp_http_client_get_status_code(client.get());

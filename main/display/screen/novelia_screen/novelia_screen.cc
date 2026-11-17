@@ -256,7 +256,15 @@ void LoadToc() {
         auto items = Toc(data.json.get(), data.json ? &error : nullptr);
         auto book_title = Title(data.json.get());
         auto progress = Parse(state.service.Last(book));
-        auto last = Text(progress.get(), "chapter");
+        auto remote = Text(data.json.get(), "lastReadChapterId");
+        auto last = ResumeChapter(items, Text(progress.get(), "chapter"), remote);
+        // 本地进度比云端新时补推：离线读过的章节不会只留在本机，联网后打开目录即补上。
+        if (!last.empty() && last != remote)
+            for (const auto& item : items)
+                if (item.id == last) {
+                    state.service.Shown(book, item);
+                    break;
+                }
         Complete(generation, [items = std::move(items), error, book_title, last] {
             ESP_LOGI("Novelia", "directory loaded: count=%u", (unsigned)items.size());
             state.chapters = items;
@@ -343,7 +351,17 @@ void OpenChapter(int index, StartAt start) {
             request.opened = [book, chapter, translation, index] {
                 state.last_chapter = chapter.id;
                 state.page = index / kRows;
-                Submit([book, chapter, translation] { state.service.Shown(book, chapter, translation); });
+                Submit([book, chapter] {
+                    if (!state.service.Shown(book, chapter)) {
+                        auto error = state.service.error;
+                        ESP_LOGW("Novelia", "reading progress: %s", error.c_str());
+                        if (error == Lang::Strings::NOVELIA_LOGIN_EXPIRED)
+                            Main([error] {
+                                if (BookScreen::IsReadScreenActive())
+                                    ScreenShowToast(error.c_str());
+                            });
+                    }
+                });
                 if (state.prefetch) {
                     int next = index + 1;
                     while (next < static_cast<int>(state.chapters.size()) && state.chapters[next].volume)
@@ -634,6 +652,7 @@ void Initialize() {
     state.initialized = true;
     state.paint.paint = Render;
     state.service.network_ready = [] { return Board::GetInstance().EnsureNetworkReady(); };
+    state.service.network_present = [] { return Board::GetInstance().IsNetworkReady(); };
     state.jobs = xQueueCreate(8, sizeof(Work*));
     if (!state.jobs) {
         state.message = Lang::Strings::NOVELIA_QUEUE_CREATE_FAILED;

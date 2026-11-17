@@ -63,6 +63,10 @@ const char* COMMON_MEMORY_RETRY = "Not enough memory";
 }
 
 static int http_error = 0;
+static int http_status = 200;
+static int http_requests = 0;
+static std::string last_method, last_url, last_body, last_authorization, last_content_type;
+static bool renew_token = false;
 static std::string chapter_body;
 static std::string image_body = "image-bytes";
 static int scratch_commits = 0;
@@ -73,11 +77,28 @@ std::string Response::Header(const std::string& name) const {
             return header.second;
     return {};
 }
-Response Request(proxy_transport::Dialer&, const std::string&, const std::string& url, const std::string&,
-                 const std::vector<std::pair<std::string, std::string>>&, size_t, int) {
+Response Request(proxy_transport::Dialer&, const std::string& method, const std::string& url,
+                 const std::string& body,
+                 const std::vector<std::pair<std::string, std::string>>& headers, size_t, int) {
+    ++http_requests;
+    last_method = method;
+    last_url = url;
+    last_body = body;
+    last_authorization.clear();
+    last_content_type.clear();
+    for (const auto& header : headers) {
+        if (header.first == "Authorization")
+            last_authorization = header.second;
+        if (header.first == "Content-Type")
+            last_content_type = header.second;
+    }
+    if (renew_token && url.find("/auth/refresh?") != std::string::npos)
+        return {200, {}, "renewed-token", 0};
+    if (renew_token && last_authorization == "Bearer renewed-token")
+        return {204, {}, {}, 0};
     if (url.rfind("https://images.example/", 0) == 0)
         return {200, {{"content-type", "image/png"}}, image_body, http_error};
-    return {200, {}, chapter_body, http_error};
+    return {http_status, {}, chapter_body, http_error};
 }
 }
 static bool fail_install = false;
@@ -227,7 +248,9 @@ int main(int argc, char** argv) {
     assert(content.find("image0.png") == std::string::npos);
     assert(content.find(Lang::Strings::NOVELIA_IMAGE_PLACEHOLDER) != std::string::npos);
 
-    service.Shown(book, illustrated, "sakura");
+    const int before_shown = http_requests;
+    assert(service.Shown(book, illustrated));
+    assert(http_requests == before_shown); // 未登录时只保存本地进度。
     const auto reading_record = service.Last(book);
     auto actual_usage = novelia::MeasureCache(service.Root());
     assert(actual_usage.ok && actual_usage.bytes > 0 && actual_usage.files > 0);
@@ -290,5 +313,43 @@ int main(int argc, char** argv) {
     assert(service.Read(cache_root + "/progress/x.json") == "reading position");
     assert(service.Read(cache_root + "/accounts/a/preferences.json") == "preferences");
     assert(service.Read(cache_root + "/accounts/a/snapshots/note.txt") == "keep");
+
+    assert(service.Save(service.Root() + "/config.json", R"({"username":"reader","token":"test-token"})"));
+    assert(service.Init());
+    http_status = 204;
+    service.network_ready = []() -> bool { assert(false && "background sync must not wait for Wi-Fi"); return false; };
+    service.network_present = [] { return true; };
+    assert(service.Shown(book, illustrated));
+    assert(service.error.empty());
+    assert(last_method == "PUT");
+    assert(last_url == "https://n.novelia.cc/api/user/read-history/syosetu/n1");
+    assert(last_body == illustrated.id && last_authorization == "Bearer test-token");
+    assert(last_content_type == "text/plain;charset=UTF-8");
+    assert(novelia::Text(novelia::Parse(service.Last(book)).get(), "chapter") == illustrated.id);
+
+    http_error = -ECONNRESET;
+    const novelia::Item next_chapter{"3", "next chapter", {}, {}, false};
+    assert(!service.Shown(book, next_chapter));
+    assert(!service.error.empty());
+    assert(novelia::Text(novelia::Parse(service.Last(book)).get(), "chapter") == next_chapter.id);
+    http_error = 0;
+    http_status = 401;
+    assert(!service.Shown(book, illustrated));
+    assert(service.error == Lang::Strings::NOVELIA_LOGIN_EXPIRED);
+    assert(service.Save(service.Root() + "/config.json",
+                        R"({"username":"reader","token":"test-token","refresh_token":"refresh"})"));
+    assert(service.Init());
+    renew_token = true;
+    assert(service.Shown(book, illustrated));
+    assert(last_method == "PUT" && last_body == illustrated.id);
+    assert(last_authorization == "Bearer renewed-token");
+    assert(last_content_type == "text/plain;charset=UTF-8");
+    renew_token = false;
+    service.network_present = [] { return false; };
+    const int before_offline = http_requests;
+    assert(service.Shown(book, next_chapter));
+    assert(service.error.empty());
+    assert(http_requests == before_offline);
+    assert(novelia::Text(novelia::Parse(service.Last(book)).get(), "chapter") == next_chapter.id);
 
 }

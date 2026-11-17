@@ -51,6 +51,8 @@ struct Item {
 std::vector<Item> Folders(const cJSON* response, std::string* error = nullptr);
 std::vector<Item> Novels(const cJSON* response, std::string* error = nullptr);
 std::vector<Item> Toc(const cJSON* response, std::string* error = nullptr);
+std::string ResumeChapter(const std::vector<Item>& chapters, const std::string& local,
+                          const std::string& remote);
 std::string EscapeXml(const std::string& text);
 std::string Quote(const std::string& text);
 struct Translation {

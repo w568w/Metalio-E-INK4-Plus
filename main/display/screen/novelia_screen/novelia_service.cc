@@ -27,6 +27,13 @@ std::string HttpError(int code) {
     }
 }
 constexpr const char* kRoot = SD_APP_ROOT "/novelia";
+std::string ApiError(const proxy_transport::Response& response) {
+    if (response.error_code)
+        return HttpError(response.error_code);
+    if (response.status == 401)
+        return Lang::Strings::NOVELIA_LOGIN_EXPIRED;
+    return Format(Lang::Strings::NOVELIA_REQUEST_FAILED_FMT, response.status);
+}
 constexpr const char* kApi = "https://n.novelia.cc/api";
 constexpr const char* kAuth = "https://auth.novelia.cc/api/v1/auth/";
 std::string Token(std::string body) {
@@ -152,10 +159,11 @@ bool Service::Configure(const cJSON* input) {
     }
     return true;
 }
-int Service::NetworkStatus() const {
+int Service::NetworkStatus(bool wait_for_network) const {
     if (cancelled && cancelled())
         return -ECANCELED;
-    const bool ready = !network_ready || network_ready();
+    const auto& check = wait_for_network ? network_ready : network_present;
+    const bool ready = !check || check();
     if (cancelled && cancelled())
         return -ECANCELED;
     return ready ? 0 : -ENETDOWN;
@@ -231,15 +239,21 @@ bool Service::Logout() {
     Set(config.get(), "refresh_token", "");
     return Persist();
 }
-proxy_transport::Response Service::Api(const std::string& method, const std::string& path, const std::string& body) {
+proxy_transport::Response Service::Api(const std::string& method, const std::string& path,
+                                      const std::string& body, bool wait_for_network) {
     proxy_transport::Response result;
-    result.error_code = NetworkStatus();
+    result.error_code = NetworkStatus(wait_for_network);
     if (result.error_code)
         return result;
     auto dialer = MakeDialer();
     auto token = Text(config.get(), "token");
+    std::vector<std::pair<std::string, std::string>> headers{{"Authorization", "Bearer " + token}};
+    // 阅读历史接口用 call.receive<String>() 读取章节 ID，网页端 ky 也发送 text/plain。
+    // 目前仅 read-history 使用 PUT；以后发送 JSON 时需改为显式传入请求头。
+    if (method == "PUT")
+        headers.emplace_back("Content-Type", "text/plain;charset=UTF-8");
     auto response =
-        Request(*dialer, method, std::string(kApi) + path, body, {{"Authorization", "Bearer " + token}});
+        Request(*dialer, method, std::string(kApi) + path, body, headers);
     if (cancelled && cancelled()) {
         response.error_code = -ECANCELED;
         return response;
@@ -256,8 +270,8 @@ proxy_transport::Response Service::Api(const std::string& method, const std::str
             if (!refreshed.empty() && refreshed.find_first_of("\r\n") == std::string::npos) {
                 Set(config.get(), "token", refreshed);
                 Write(Root() + "/config.json", Encode(config.get()));
-                response = Request(*dialer, method, std::string(kApi) + path, body,
-                                   {{"Authorization", "Bearer " + refreshed}});
+                headers.front().second = "Bearer " + refreshed;
+                response = Request(*dialer, method, std::string(kApi) + path, body, headers);
             }
         }
     }
@@ -270,8 +284,7 @@ bool Service::TestProxy(const cJSON* input) {
     auto dialer = Dialer(trial.get());
     auto response = Request(*dialer, "GET", std::string(kApi) + "/user/favored");
     if (response.error_code != 0 || response.status < 200 || response.status >= 500) {
-        error = response.error_code ? HttpError(response.error_code)
-                                    : Format(Lang::Strings::NOVELIA_REQUEST_FAILED_FMT, response.status);
+        error = ApiError(response);
         return false;
     }
     // 鉴权拒绝也说明代理及目标 HTTPS 已连通，测试无需登录态。
@@ -295,9 +308,7 @@ Fetched Service::Fetch(const std::string& path, const std::string& cache_key, Fe
         Write(cache, response.body);
         return {std::move(result), {}};
     }
-    auto failure = response.error_code ? HttpError(response.error_code)
-            : response.status == 401 ? Lang::Strings::NOVELIA_LOGIN_EXPIRED
-                                     : Format(Lang::Strings::NOVELIA_REQUEST_FAILED_FMT, response.status);
+    auto failure = ApiError(response);
     auto saved = Parse(Read(cache));
     if (saved)
         failure += Lang::Strings::NOVELIA_OFFLINE_CACHE;
@@ -342,11 +353,23 @@ bool Service::SetPrefetch(bool enabled) {
 std::string Service::Last(const Item& novel) {
     return Read(Root() + "/progress/" + sd_file::Key(novel.id) + ".json");
 }
-void Service::Shown(const Item& novel, const Item& chapter, const std::string& mode) {
+bool Service::Shown(const Item& novel, const Item& chapter) {
+    error.clear();
     auto value = Object();
     Set(value.get(), "chapter", chapter.id);
-    Set(value.get(), "translation", mode);
-    Save(Root() + "/progress/" + sd_file::Key(novel.id) + ".json", Encode(value.get()));
+    if (!Save(Root() + "/progress/" + sd_file::Key(novel.id) + ".json", Encode(value.get())))
+        return false;
+    if (Text(config.get(), "token").empty())
+        return true;
+    auto response = Api("PUT", "/user/read-history/" + Quote(novel.provider) + "/" + Quote(novel.novel),
+                        chapter.id, false); // 不等待联网。
+    if (response.error_code == -ENETDOWN)
+        return true; // 后台同步仅使用现有连接，离线时保留本地进度。
+    if (response.error_code != 0 || response.status < 200 || response.status >= 300) {
+        error = ApiError(response);
+        return false;
+    }
+    return true;
 }
 FormResult ApplyForm(const cJSON* input, Service& service) {
     const auto action = Text(input, "action");
