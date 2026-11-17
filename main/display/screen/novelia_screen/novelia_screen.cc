@@ -143,8 +143,11 @@ void CancelPendingWork() {
         StopLogin();
         state.portal_url.clear();
         state.message = Lang::Strings::NOVELIA_PORTAL_CLOSED;
-        Repaint();
+    } else {
+        // 在途任务已丢弃，没有结果可等，不要把加载提示留在页面上。
+        state.message.clear();
     }
+    Repaint();
 }
 void Back() {
     if (state.busy) {
