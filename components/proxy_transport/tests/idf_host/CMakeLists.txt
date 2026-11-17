@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.22)
+get_filename_component(PROXY "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
+set(EXTRA_COMPONENT_DIRS "${PROXY}")
+set(COMPONENTS main)
+include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+project(proxy_http_test)
