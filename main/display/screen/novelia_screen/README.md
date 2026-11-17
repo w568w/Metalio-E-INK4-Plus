@@ -16,7 +16,7 @@
 使用 ESP-IDF 6.1。首次构建前把根目录 `sdkconfig` 复制到 `build/novelia/sdkconfig`，并关闭 `CONFIG_METALIO_TOUCH_UPGRADE_ON_BOOT`。
 
 ```sh
-uv run scripts/flash_app.py --idf /path/to/esp-idf
+uv run tools/firmware/flash_app.py --idf /path/to/esp-idf
 ```
 
 bootloader 与应用要用同一个 SDK 构建。
