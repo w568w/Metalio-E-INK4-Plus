@@ -1,5 +1,6 @@
 tmp/
 components/*
+!components/proxy_transport/
 !components/esp-ml307/
 !components/esp-ml307/**
 !components/esp-wifi-connect/
