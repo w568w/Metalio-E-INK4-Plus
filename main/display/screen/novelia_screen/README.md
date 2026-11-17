@@ -23,11 +23,11 @@ bootloader 与应用要用同一个 SDK 构建。
 
 ## 检查
 
-需要系统 cJSON、zlib、SDL2 开发库、CMake、C++17 编译器、Node.js，以及已编译的 Mbed TLS 3.6。
+需要系统 cJSON、zlib、SDL2 开发库、CMake、C++17 编译器及 Node.js：
 
 ```sh
 . /path/to/esp-idf/export.sh
-python tests/novelia/run.py --idf /path/to/esp-idf --mbedtls /path/to/mbedtls --mbedtls-build /path/to/mbedtls-build
+python tests/novelia/run.py --idf /path/to/esp-idf
 ```
 
 界面截图和控件坐标写到 `build/novelia-emulator-preview/screens/`。
