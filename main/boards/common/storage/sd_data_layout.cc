@@ -1,5 +1,6 @@
 #include "sd_data_layout.h"
 #include "sd_paths.h"
+#include "sd_file.h"
 
 #include <algorithm>
 #include <cerrno>
@@ -9,7 +10,6 @@
 #include <new>
 #include <memory>
 #include <vector>
-#include <mbedtls/md.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
@@ -49,21 +49,7 @@ static bool Relative(const char* path, const char* root, std::string& out) {
     return true;
 }
 
-static std::string Key(const std::string& relative) {
-    unsigned char digest[32];
-    const auto* algorithm = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
-    if (!algorithm || mbedtls_md(algorithm, reinterpret_cast<const unsigned char*>(relative.data()), relative.size(), digest)) {
-        ESP_LOGE(TAG, "path key failed");
-        return {};
-    }
-    static const char hex[] = "0123456789abcdef";
-    std::string key(64, '0');
-    for (size_t i = 0; i < sizeof(digest); ++i) {
-        key[i * 2] = hex[digest[i] >> 4];
-        key[i * 2 + 1] = hex[digest[i] & 15];
-    }
-    return key;
-}
+using sd_file::Key;
 
 static bool IsCover(const char* suffix) {
     return !std::strcmp(suffix, ".a2l8") || !std::strcmp(suffix, ".a2i1");
@@ -89,7 +75,7 @@ static std::string StoredPath(const char* root, const std::string& key, const ch
 
 static bool EnsureParent(const std::string& path) {
     const auto slash = path.find_last_of('/');
-    if (slash == std::string::npos || !SdEnsureDir(path.substr(0, slash).c_str())) {
+    if (slash == std::string::npos || !sd_file::EnsurePath(path.substr(0, slash))) {
         ESP_LOGE(TAG, "auxiliary parent unavailable errno=%d", errno);
         return false;
     }
@@ -126,10 +112,18 @@ static std::string SelectStoredPath(const char* root, const std::string& key, co
 }
 
 std::string BookPath(const char* book, const char* suffix) {
+    if (!suffix) return {};
     std::string relative;
-    if (!suffix || !Relative(book, SD_PATH_BOOKS, relative)) return {};
-    bool ok = true;
+    const bool local_library = Relative(book, SD_PATH_BOOKS, relative);
     const bool temporary = !std::strcmp(suffix, ".pos") || !std::strcmp(suffix, ".bmk");
+    if (!local_library) {
+        // 外部来源限于应用数据目录；存档键仍沿用挂载点相对路径以兼容已有数据。
+        if (!Relative(book, SD_APP_ROOT, relative)) return {};
+        if (!Relative(book, SD_MOUNT_POINT, relative)) return {};
+        const auto root = std::string(BookRoot(suffix)) + "/external";
+        return SelectStoredPath(root.c_str(), Key(relative), suffix, temporary);
+    }
+    bool ok = true;
     const auto legacy = LegacyBookPath(book, suffix);
     const bool old = HasData(legacy, temporary, ok);
     if (!ok) return {};
@@ -168,26 +162,19 @@ static bool Move(const std::string& source, const std::string& target) {
     bool backup_present = Exists(backup, &ok);
     if (!ok) return false;
     if (!EnsureParent(target)) return false;
-    if (backup_present) {
-        if (target_present) {
-            if (unlink(backup.c_str())) goto fail;
-        } else if (rename(backup.c_str(), target.c_str())) goto fail;
-        target_present = true;
+    if (backup_present && !target_present && rename(backup.c_str(), target.c_str())) {
+        ESP_LOGE(TAG, "auxiliary recovery failed errno=%d", errno);
+        return false;
     }
-    if (target_present && rename(target.c_str(), backup.c_str())) goto fail;
-    backup_present = target_present;
-    if (rename(source.c_str(), target.c_str())) {
-        const int saved = errno;
-        if (backup_present && rename(backup.c_str(), target.c_str()))
-            ESP_LOGE(TAG, "auxiliary restore failed errno=%d", errno);
-        errno = saved;
-        goto fail;
+    const auto result = sd_file::ReplaceFile(source, target, backup);
+    if (!result.Ok()) {
+        ESP_LOGE(TAG, "auxiliary move failed: %s errno=%d restore_errno=%d",
+                 result.stage, result.error, result.rollback_error);
+        return false;
     }
-    if (backup_present && unlink(backup.c_str())) goto fail;
+    if (unlink(backup.c_str()) && errno != ENOENT)
+        ESP_LOGW(TAG, "auxiliary move committed: remove_backup errno=%d", errno);
     return true;
-fail:
-    ESP_LOGE(TAG, "auxiliary move failed errno=%d", errno);
-    return false;
 }
 
 static bool Book(const std::string& path) {

@@ -1,4 +1,5 @@
 #include "wifi_config_storage.h"
+#include "sd_file.h"
 
 #include "SdCardManager.hpp"
 #include "sd_access.h"
@@ -13,7 +14,6 @@
 #define TAG "WifiConfigStorage"
 
 namespace {
-constexpr const char* kTemp = SD_PATH_WIFI_CONFIG ".tmp";
 constexpr const char* kBackup = SD_PATH_WIFI_CONFIG ".bak";
 constexpr size_t kMaxBytes = 8192;
 
@@ -94,38 +94,18 @@ SsidManager::ReadResult Read(std::string& text) {
 bool Write(const std::string& text) {
     sd_access::Transaction transaction;
     if (!CanAccess("NVS->SD", static_cast<bool>(transaction))) return false;
-    if (!SdEnsureDir("/sdcard/metalio") || !SdEnsureDir(SD_APP_ROOT) ||
-        !SdEnsureDir(SD_PATH_SETTINGS)) return Fail("NVS->SD", "create_directory");
-    struct stat st;
-    bool exists = stat(SD_PATH_WIFI_CONFIG, &st) == 0;
-    if (!exists && errno != ENOENT) return Fail("NVS->SD", "stat");
-    if (exists && !S_ISREG(st.st_mode)) {
-        ESP_LOGE(TAG, "NVS->SD failed: destination_not_regular_file");
+    const auto result = sd_file::WriteFile(SD_PATH_WIFI_CONFIG, kBackup, text.data(), text.size());
+    if (!result.Ok()) {
+        errno = result.error;
+        Fail("NVS->SD", result.stage);
+        if (result.rollback_error) {
+            errno = result.rollback_error;
+            Fail("NVS->SD", "restore_backup");
+        }
         return false;
     }
-    FILE* file = fopen(kTemp, "wb");
-    if (!file) return Fail("NVS->SD", "open_temp");
-    const char* stage = nullptr;
-    if (fwrite(text.data(), 1, text.size(), file) != text.size()) stage = "write_temp";
-    else if (fflush(file) != 0) stage = "flush_temp";
-    else if (fsync(fileno(file)) != 0) stage = "sync_temp";
-    const int write_errno = errno;
-    const int closed = fclose(file);
-    if (stage) {
-        errno = write_errno;
-        return Fail("NVS->SD", stage);
-    }
-    if (closed != 0) return Fail("NVS->SD", "close_temp");
-    if (exists) {
-        if (unlink(kBackup) != 0 && errno != ENOENT) return Fail("NVS->SD", "remove_old_backup");
-        if (rename(SD_PATH_WIFI_CONFIG, kBackup) != 0) return Fail("NVS->SD", "backup_previous");
-    }
-    if (rename(kTemp, SD_PATH_WIFI_CONFIG) != 0) {
-        Fail("NVS->SD", "install_temp");
-        if (exists && rename(kBackup, SD_PATH_WIFI_CONFIG) != 0) Fail("NVS->SD", "restore_backup");
-        return false;
-    }
-    if (unlink(kBackup) != 0 && errno != ENOENT) return Fail("NVS->SD", "remove_backup");
+    if (unlink(kBackup) != 0 && errno != ENOENT)
+        ESP_LOGW(TAG, "NVS->SD committed: remove_backup errno=%d", errno);
     return true;
 }
 }
