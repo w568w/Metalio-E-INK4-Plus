@@ -389,7 +389,7 @@ lv_obj_set_style_pad_column(bar, 16, 0);
 lv_obj_clear_flag(bar, LV_OBJ_FLAG_CLICKABLE);
 Book_DisableScroll(bar);
 
-MakeSheetTextLink(bar, Lang::Strings::BOOK_TOC, OnSheetTocClicked);
+if (st.reader.launch.show_toc) MakeSheetTextLink(bar, Lang::Strings::BOOK_TOC, OnSheetTocClicked);
 MakeSheetTextLink(bar, Lang::Strings::BOOK_TAP_ZONES, OnSheetTapZonesClicked);
 
 lv_obj_update_layout(st.settings.settings_sheet);

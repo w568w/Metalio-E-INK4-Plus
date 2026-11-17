@@ -434,7 +434,7 @@ void RenderReaderPage() {
     }
 }
 
-lv_obj_t* CreateReaderScreen(const reader::BookInfo& info) {
+lv_obj_t* CreateReaderScreen(reader::BookInfo info) {
     auto& st = Book_State();
     // 硬护栏：layout/open worker 仍用旧 session 时禁止 make_unique 拆掉（UAF）
     if (ReaderWorkersBusy()) {
@@ -457,6 +457,9 @@ lv_obj_t* CreateReaderScreen(const reader::BookInfo& info) {
         return BookScreen::Create();
     }
     st.reader.session = std::make_unique<reader::BookSession>();
+    if (st.reader.launch.book.path != info.path) {
+        st.reader.ClearHost();
+    }
     BindSessionLayoutPrefs(*st.reader.session);
     st.reader.opening_format = info.format;
 
@@ -562,7 +565,7 @@ lv_obj_t* CreateReaderScreen(const reader::BookInfo& info) {
     ScreenSetIsHome(false);
     // factory=ResumeReader：进百问压栈后返回依 .pos 续读；短按 HOME 回详情
     VkKey_AttachScreen(scr, kScreenRead, BookAiLongPressDesc(ResumeReaderScreen));
-    StartOpenWorker(st.shelf.selected);
+    StartOpenWorker(info, st.reader.launch.start);
     return scr;
 }
 

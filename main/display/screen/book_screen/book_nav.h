@@ -3,6 +3,7 @@
 #include <lvgl.h>
 #include "reader/book_session.h"
 struct ReaderPageResult;
+struct VkKeyScreenDesc;
 
 /** @brief 从 LVGL 事件读取触点坐标 */
 bool ReadEventPoint(lv_event_t* e, lv_point_t* out);
@@ -12,6 +13,8 @@ bool QueueReaderPageTurn(int dir);
 void RequestBackHome();
 /** @brief 完成离开正文后的延迟清理 */
 void FinishDeferredCleanup();
+/** @brief 旧阅读 worker 未收尾时创建等待屏；已就绪返回 nullptr。 */
+lv_obj_t* BookWaitForCleanup(const char* key, VkKeyScreenDesc keys);
 /** @brief 提交最终进度并将会话析构交给回收任务；队列满时保留会话供重试。 */
 bool RetireReaderSession();
 /** @brief 预留 SD 事务并后台销毁会话；成功后取得指针所有权。 */
@@ -22,6 +25,8 @@ bool ReaderWorkersBusy();
 void WarnReaderWorkersBusy(const char* where);
 /** @brief 与进百问同源：open_token 失效 worker 回调；opening 时 deferred_cleanup，避免 UAF/泄漏 */
 void ReleaseReaderSessionForLeave();
+/** @brief 清空返回栈时释放宿主打开请求和回调；须在 LVGL 任务调用。 */
+void ClearReaderHost();
 /** @brief 导航真正执行前清理当前活动阅读屏；须在 LVGL 任务调用。 */
 void ReleaseReaderForSystemHome();
 /** @brief 从目录/设置等返回已有正文屏 */

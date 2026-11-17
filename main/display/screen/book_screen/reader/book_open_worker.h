@@ -1,6 +1,7 @@
 #pragma once
 
 #include <lvgl.h>
+#include "book_reader_hooks.h"
 
 #include "book_screen/settings/book_tap_zones.h"
 
@@ -8,6 +9,7 @@
 void ShowOpenProgress(int percent);
 /** @brief 启动打开书籍 worker */
 void StartOpenWorker(int book_index);
+void StartOpenWorker(reader::BookInfo info, StartAt start = StartAt::Saved);
 /** @brief 异步进入正文（LVGL 任务入口） */
 void StartReadAsync(void* user_data);
 /** @brief 执行触摸分区动作 */

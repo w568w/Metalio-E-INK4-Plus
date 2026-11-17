@@ -41,6 +41,7 @@ enum class NavigationKind {
     Home, // 返回首页
     Back, // 返回上一页面
 };
+enum class PushPolicy { Push, Replace };
 
 struct PendingNavigation {
     NavigationKind kind = NavigationKind::None; // 尚未执行的最新导航意图
@@ -48,6 +49,7 @@ struct PendingNavigation {
     ScreenFactory return_to = nullptr; // 指定返回入口，空时使用来源页面工厂
     lv_obj_t* origin = nullptr; // 发起导航的活动屏幕
     bool standby = false; // 待机 Overlay 不改变活动屏幕，需单独校验
+    PushPolicy history = PushPolicy::Push;
 };
 
 lv_timer_t* navigation_retry = nullptr;
@@ -65,6 +67,7 @@ void GoHomeNow() {
         }
     }
     ScreenCommon_ClearBackStack();
+    ClearReaderHost();
     ScreenCommon_on_home = true;
     ScreenLoadReplace(HomeScreen::Create());
 }
@@ -73,7 +76,7 @@ void ExecuteNavigation(const PendingNavigation& target) {
     ReleaseReaderForSystemHome();
     if (target.kind == NavigationKind::To) {
         const char* cur = VkKey_ActiveScreen();
-        if (cur != nullptr && std::strcmp(cur, kHomeScreen) != 0 &&
+        if (target.history == PushPolicy::Push && cur != nullptr && std::strcmp(cur, kHomeScreen) != 0 &&
             std::strcmp(cur, "none") != 0) {
             if (ScreenFactory factory = target.return_to ? target.return_to : VkKey_GetScreenFactory(cur)) {
                 ScreenCommon_PushBackFactory(factory);
@@ -115,10 +118,10 @@ void ProcessPendingNavigation(lv_timer_t*) {
 }
 
 void RequestNavigation(NavigationKind kind, ScreenFactory factory = nullptr, bool next_tick = false,
-                       ScreenFactory return_to = nullptr) {
+                       ScreenFactory return_to = nullptr, PushPolicy history = PushPolicy::Push) {
     // 先取消旧翻页，再等待落墨结束；合并期间不创建页面或修改返回栈。
     EpdCancelPageTurn();
-    pending_navigation = {kind, factory, return_to, lv_screen_active(), StandbyScreen::IsActive()};
+    pending_navigation = {kind, factory, return_to, lv_screen_active(), StandbyScreen::IsActive(), history};
     if (!next_tick) {
         ProcessPendingNavigation(nullptr);
         if (pending_navigation.kind == NavigationKind::None) return;
@@ -137,6 +140,10 @@ void RequestNavigation(NavigationKind kind, ScreenFactory factory = nullptr, boo
 
 void ScreenNavigateTo(lv_obj_t* (*create)(), lv_obj_t* (*return_to)()) {
     if (create != nullptr) RequestNavigation(NavigationKind::To, create, false, return_to);
+}
+
+void ScreenNavigateReplace(lv_obj_t* (*create)()) {
+    if (create != nullptr) RequestNavigation(NavigationKind::To, create, false, nullptr, PushPolicy::Replace);
 }
 
 void ScreenNavigateBack() {

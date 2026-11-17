@@ -2112,6 +2112,7 @@ void BuildReadingBottomSheet() {
     lv_obj_set_style_border_color(nav, lv_color_black(), 0);
     const char* tabs[] = {Lang::Strings::BOOK_TOC, Lang::Strings::BOOK_FONT_TITLE, Lang::Strings::BOOK_BOOKMARKS, Lang::Strings::HOME_APP_SETTINGS};
     const lv_image_dsc_t* icons[] = {SheetFontIcon(), SheetTocIcon(), SheetBookmarkNavIcon(), SheetSettingsIcon()};
+    const int first_tab = st.reader.launch.show_toc ? 0 : 1;
     const int bottom_gap = LV_HOR_RES>LV_VER_RES?8:UiSy(10); // Additional space inside the display's configured 8px content inset.
     if(st.settings.reader_tab==2 && st.settings.bookmark_multi) {
         const char* actions[]={Lang::Strings::COMMON_CANCEL,Lang::Strings::COMMON_SELECT_ALL,Lang::Strings::COMMON_REMOVE};
@@ -2136,8 +2137,9 @@ void BuildReadingBottomSheet() {
             if (i == 2) SetSheetBtnEnabled(button,
                 (ttf_multi ? TtfSelectedCount() : FontSelectedCount()) > 0 && (ttf_multi || !ReaderWorkersBusy()));
         }
-    } else for (int i = 0; i < 4; ++i) {
-        auto* btn = SheetBox(nav, sheet_width / 4, nav_h - bottom_gap - 2);lv_obj_set_pos(btn, i * sheet_width / 4, 1);
+    } else for (int i = first_tab; i < 4; ++i) {
+        const int width = sheet_width / (4 - first_tab);
+        auto* btn = SheetBox(nav, width, nav_h - bottom_gap - 2);lv_obj_set_pos(btn, (i - first_tab) * width, 1);
         lv_obj_add_flag(btn, LV_OBJ_FLAG_CLICKABLE);HapticAttachClick(btn);
         lv_obj_add_event_cb(btn, SheetTabEvent, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
         auto* icon = lv_image_create(btn);
