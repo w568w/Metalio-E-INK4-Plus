@@ -21,6 +21,18 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wpedantic")
 set(LV_BUILD_SET_CONFIG_OPTS ON CACHE BOOL
     "create CMAKE variables from lv_conf_internal.h" FORCE)
 
+# Derive the headless test configuration from the emulator's shared configuration.
+# The WASM build disables the same optional vector renderer.
+if(NOVELIA_UI_PREVIEW)
+    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/lv_conf.h" preview_conf)
+    foreach(feature LV_USE_VECTOR_GRAPHIC LV_USE_THORVG_INTERNAL LV_USE_LOTTIE LV_BUILD_EXAMPLES LV_BUILD_DEMOS)
+        string(REGEX REPLACE "(#define ${feature}[ \t]+)1" "\\10" preview_conf "${preview_conf}")
+    endforeach()
+    file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/preview-conf")
+    file(WRITE "${CMAKE_BINARY_DIR}/preview-conf/lv_conf.h" "${preview_conf}")
+    set(LV_BUILD_CONF_PATH "${CMAKE_BINARY_DIR}/preview-conf/lv_conf.h" CACHE PATH "" FORCE)
+endif()
+
 add_subdirectory(lvgl)
 
 if (CONFIG_LV_USE_EVDEV)

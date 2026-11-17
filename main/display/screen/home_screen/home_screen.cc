@@ -1,4 +1,5 @@
 #include "home_screen/home_screen_priv.h"
+#include "novelia_screen/novelia_screen.h"
 
 #include "home_screen_priv.h"
 #include "app_store/app_store.h"
@@ -68,6 +69,8 @@ void Home_OnAppNameDraw(lv_event_t* e)
     const char* Home_AppNameWorkBuddy() { return "workbuddy"; }
     #endif
 
+    const char* Home_AppNameNovelia() { return "Novelia"; }
+
     const AppEntry kBuiltinApps[] = {
         {"A:ic_app_home_task.spng", Home_AppNameTask, TaskScreen::Create},
         {"A:ic_app_home_teacher.spng", Home_AppNameAssistant, AssistantScreen::Create},
@@ -78,6 +81,7 @@ void Home_OnAppNameDraw(lv_event_t* e)
         #if !CONFIG_BOARD_TYPE_METALIO_E_INK4_PLUS_GLOBAL
         {"A:ic_app_home_workbuddy.spng", Home_AppNameWorkBuddy, WorkBuddyScreen::Create},
         #endif
+        {"A:ic_app_home_book.spng", Home_AppNameNovelia, NoveliaScreen::Create},
     };
 
     // 仅对外展示用户可见的应用，保持首页与设计稿一致。
@@ -91,6 +95,7 @@ void Home_OnAppNameDraw(lv_event_t* e)
         #if !CONFIG_BOARD_TYPE_METALIO_E_INK4_PLUS_GLOBAL
         {"A:ic_app_home_workbuddy.spng", Home_AppNameWorkBuddy, WorkBuddyScreen::Create},
         #endif
+        {"A:ic_app_home_book.spng", Home_AppNameNovelia, NoveliaScreen::Create},
     };
 
     // 每页六个应用，新增应用自动进入后续页。
