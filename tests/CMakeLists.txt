@@ -101,3 +101,12 @@ add_executable(reader_toc_test reader_toc_test.cc
 target_compile_options(reader_toc_test PRIVATE ${WARNINGS} -UNDEBUG)
 target_compile_definitions(reader_toc_test PRIVATE LV_CONF_SKIP=1)
 target_include_directories(reader_toc_test PRIVATE "${MAIN}" "${ESP_COMPAT}" "${REPO}/tools/ebook/emulator/lvgl")
+
+# Linux 内核与控制台；镜像由统一测试入口传入。
+set(LINUX_APP "${MAIN}/display/screen/linux_screen")
+add_executable(linux_boot_test linux/boot_test.cc "${LINUX_APP}/linux_vm.cc")
+target_include_directories(linux_boot_test PRIVATE "${LINUX_APP}")
+target_compile_options(linux_boot_test PRIVATE ${WARNINGS} -Wno-unused-parameter -UNDEBUG)
+add_executable(linux_console_test linux/console_test.cc "${LINUX_APP}/linux_console.cc")
+target_include_directories(linux_console_test PRIVATE "${LINUX_APP}")
+target_compile_options(linux_console_test PRIVATE ${WARNINGS} -UNDEBUG)
