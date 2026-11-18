@@ -1,3 +1,4 @@
+#include "linux_screen/linux_screen.h"
 #include "ble_page_turner.h"
 #include "screen_frontlight.h"
 #include "standby_screen/standby_screen.h"
@@ -187,6 +188,7 @@ void StandbyScreen::Show() {
     AssistantScreen::SetStandby(true);
     AppStoreScreen::SetStandby(true);
     WorkBuddyScreen::SetStandby(true);
+    LinuxScreen::SetStandby(true);
     // Stop the log producer before closing admission. Existing file handles and
     // the explicitly permitted standby decoder finish before SD is removed.
     SdLogWriter_OnSdUnmounting();
@@ -236,6 +238,7 @@ void StandbyScreen::Dismiss() {
     AssistantScreen::SetStandby(false);
     AppStoreScreen::SetStandby(false);
     WorkBuddyScreen::SetStandby(false);
+    LinuxScreen::SetStandby(false);
 
     // 清除待机前电量，待唤醒负载稳定 3s 后重新校准。
     Bq27220Gauge::GetInstance().ResetFilter();

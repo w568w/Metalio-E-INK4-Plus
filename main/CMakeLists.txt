@@ -38,6 +38,7 @@ file(GLOB WORKBUDDY_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/workbuddy/*.cc"
 
 file(GLOB APP_STORE_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/app_store/*.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/display/screen/app_store_screen/*.cc")
+file(GLOB LINUX_SCREEN_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/display/screen/linux_screen/*.cc")
 file(GLOB NOVELIA_SCREEN_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/display/screen/novelia_screen/*.cc")
 
 file(GLOB HOME_SCREEN_SRCS
@@ -196,6 +197,7 @@ idf_component_register(
         ${HOME_SCREEN_SRCS}
         ${APP_STORE_SRCS}
         ${NOVELIA_SCREEN_SRCS}
+        ${LINUX_SCREEN_SRCS}
         ${WORKBUDDY_SRCS}
         ${SETTINGS_SCREEN_SRCS}
         ${BLUETOOTH_SCREEN_SRCS}
