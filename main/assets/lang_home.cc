@@ -8,6 +8,7 @@
 #include "assets/lang_haptic.h"
 #include "assets/lang_network.h"
 #include "assets/lang_novelia.h"
+#include "assets/lang_linux.h"
 #include "assets/lang_charging.h"
 #include "assets/lang_wallpaper.h"
 #include "assets/lang_bluetooth.h"
@@ -25,6 +26,30 @@
 
 // X(name, zh, en)
 #define LANG_STRING_LIST(X)                                                                                    \
+    X(LINUX_QUEUE_ERROR, "无法创建输入队列", "Cannot create input queue") \
+    X(LINUX_IMAGE_LINK, "镜像", "Image") \
+    X(LINUX_LATEST, "最新输出", "Latest output") \
+    X(LINUX_OLDEST, "已到最早保留的输出", "Oldest retained output") \
+    X(LINUX_HISTORY_FMT, "历史输出：向上 %u 行", "History: %u lines above latest") \
+    X(LINUX_TITLE, "Linux", "Linux") \
+    X(LINUX_LOADING, "正在启动…", "Starting…") \
+    X(LINUX_RUNNING, "运行中", "Running") \
+    X(LINUX_IMAGE_ERROR, "无法打开镜像，请重新选择", "Cannot open image. Choose another.") \
+    X(LINUX_MEMORY_ERROR, "内存不足，需要连续 12 MiB PSRAM", "12 MiB contiguous PSRAM required") \
+    X(LINUX_TASK_ERROR, "无法创建模拟器任务", "Cannot create emulator task") \
+    X(LINUX_POWERED_OFF, "已结束", "Ended") \
+    X(LINUX_RESTART, "已结束（请求重启）", "Ended (restart requested)") \
+    X(LINUX_CHOOSE, "选择镜像", "Choose image") \
+    X(LINUX_INTERRUPT, "中断", "Interrupt") \
+    X(LINUX_LIST_LOADING, "正在读取镜像列表…", "Reading image list…") \
+    X(LINUX_NO_IMAGES, "没有镜像。请将 RV32IMA Linux 裸 Image 文件放入 metalio/e-ink/linux/，再重新打开应用。", "No images. Copy an RV32IMA Linux Image file into metalio/e-ink/linux/, then reopen this app.") \
+    X(LINUX_LIST_ERROR, "镜像目录读取失败，请检查 SD 卡", "Cannot read image directory. Check SD card.") \
+    X(LINUX_AUTO_FAILED, "上次的镜像启动失败，请重新选择", "Last image could not start. Choose another.") \
+    X(LINUX_INPUT_FULL, "输入队列已满，请稍后再次确认", "Input queue full. Confirm again shortly.") \
+    X(LINUX_NOT_RUNNING, "Linux 尚未运行", "Linux is not running yet") \
+    X(LINUX_SD_BUSY, "SD 卡暂不可用，请关闭 USB 传输", "SD unavailable. Turn off USB transfer.") \
+    X(LINUX_IMAGE_SIZE_ERROR, "镜像为空或超过虚拟机的内存上限", "Image is empty or exceeds guest memory") \
+    X(LINUX_IMAGE_READ_ERROR, "镜像读取不完整，请检查文件和 SD 卡", "Image read failed. Check file and SD card.") \
     X(STORE_PREVIOUS_PAGE, "上一页", "Previous") \
     X(STORE_NEXT_PAGE, "下一页", "Next") \
     X(STORE_PAGE_RESULTS, "本页未安装应用", "Not installed on this page") \

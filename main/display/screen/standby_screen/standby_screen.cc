@@ -1,3 +1,4 @@
+#include "linux_screen/linux_screen.h"
 #include "ble_page_turner.h"
 #include "screen_frontlight.h"
 #include "standby_screen/standby_screen.h"
@@ -214,6 +215,7 @@ void StandbyScreen::Show() {
     AssistantScreen::SetStandby(true);
     AppStoreScreen::SetStandby(true);
     WorkBuddyScreen::SetStandby(true);
+    LinuxScreen::SetStandby(true);
     // Stop the log producer before closing admission. Existing file handles and
     // the explicitly permitted standby decoder finish before SD is removed.
     SdLogWriter_OnSdUnmounting();
@@ -312,6 +314,7 @@ void StandbyScreen::PollResume() {
     AssistantScreen::SetStandby(false);
     AppStoreScreen::SetStandby(false);
     WorkBuddyScreen::SetStandby(false);
+    LinuxScreen::SetStandby(false);
     if (TaskScreen::IsActive()) TaskScreen::OnResumeFromStandby();
     SettingsTestBatteryScreen_ResumeFromStandby();
     if (auto* disp = LVAdapterDisplay::Instance()) disp->ResumeStandbyBackgroundWork();
