@@ -30,7 +30,7 @@ void SettingsStyleSelectable(lv_obj_t* btn, lv_obj_t* lbl, bool selected) {
 }
 
 lv_obj_t* SettingsCreateSelectableOption(lv_obj_t* parent, const char* title, lv_event_cb_t cb,
-                                         intptr_t user_data) {
+                                         intptr_t user_data, bool fit_label) {
     lv_obj_t* btn = lv_obj_create(parent);
     lv_obj_remove_style_all(btn);
     lv_obj_set_width(btn, lv_pct(100));
@@ -46,7 +46,10 @@ lv_obj_t* SettingsCreateSelectableOption(lv_obj_t* parent, const char* title, lv
     lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_center(lbl);
     lv_obj_clear_flag(lbl, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(btn, ScreenFitButtonLabelOnSize, LV_EVENT_SIZE_CHANGED, lbl);
+    // 调用点无法事后移除这个回调：ScreenFitButtonLabelOnSize 是 screen_text.h 里的
+    // static inline，每个 TU 一份地址，lv_obj_remove_event_cb_with_user_data 比不中。
+    // 需要自己按宽度截断文案（如文件名中间省略）的页面传 false。
+    if (fit_label) lv_obj_add_event_cb(btn, ScreenFitButtonLabelOnSize, LV_EVENT_SIZE_CHANGED, lbl);
 
     SettingsStyleSelectable(btn, lbl, false);
     return btn;

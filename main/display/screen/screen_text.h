@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <string>
 #include <lvgl.h>
 
 /** @brief 检查字体及其回退链是否包含文本所需字形 */
@@ -57,4 +58,42 @@ static inline void ScreenFitButtonLabelOnSize(lv_event_t* event) {
     auto* label = static_cast<lv_obj_t*>(lv_event_get_user_data(event));
     ScreenFitLabel(label, lv_obj_get_content_width(button), lv_obj_get_content_height(button));
     lv_obj_center(label);
+}
+
+/** @brief 测量不换行文本的像素宽度。 */
+static inline lv_coord_t ScreenMeasureTextWidth(const lv_font_t* font, const char* text) {
+    if (font == nullptr || text == nullptr || text[0] == '\0') return 0;
+    lv_point_t size{};
+    lv_text_get_size(&size, text, font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    return static_cast<lv_coord_t>(size.x);
+}
+
+/** @brief 文件名单行中间省略，保留首尾；沿用阅读器列表规则。 */
+static inline void ScreenSetFilenameMiddle(lv_obj_t* label, const char* filename, const char* ellipsis = "…") {
+    lv_obj_update_layout(label);
+    const auto* font = lv_obj_get_style_text_font(label, LV_PART_MAIN);
+    const int width = lv_obj_get_content_width(label);
+    std::string text = filename ? filename : "";
+    if (width > 0 && ScreenMeasureTextWidth(font, text.c_str()) > width) {
+        size_t middle = text.size() / 2;
+        while (middle > 0 && (static_cast<unsigned char>(text[middle]) & 0xC0) == 0x80) --middle;
+        std::string head = text.substr(0, middle);
+        std::string tail = text.substr(middle);
+        while (!head.empty() || !tail.empty()) {
+            if (head.size() >= tail.size()) {
+                size_t end = head.size() - 1;
+                while (end > 0 && (static_cast<unsigned char>(head[end]) & 0xC0) == 0x80) --end;
+                head.resize(end);
+            } else {
+                size_t next = 1;
+                while (next < tail.size() && (static_cast<unsigned char>(tail[next]) & 0xC0) == 0x80) ++next;
+                tail.erase(0, next);
+            }
+            text = head + ellipsis + tail;
+            if (ScreenMeasureTextWidth(font, text.c_str()) <= width) break;
+        }
+        if (ScreenMeasureTextWidth(font, text.c_str()) > width) text.clear();
+    }
+    lv_label_set_long_mode(label, LV_LABEL_LONG_CLIP);
+    lv_label_set_text(label, text.c_str());
 }

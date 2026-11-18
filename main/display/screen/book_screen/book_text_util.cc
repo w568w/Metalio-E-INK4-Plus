@@ -1,4 +1,5 @@
 #include "book_screen/book_text_util.h"
+#include "screen_text.h"
 #include "book_screen/book_screen_priv.h"
 #include "book_screen/book_font_runtime.h"
 #include "book_screen/shelf/book_home.h"
@@ -124,12 +125,7 @@ lv_coord_t Book_ContentWidth() {
 }
 
 lv_coord_t Book_MeasureTextWidth(const lv_font_t* font, const char* text) {
-    if (font == nullptr || text == nullptr || text[0] == '\0') {
-        return 0;
-    }
-    lv_point_t sz = {};
-    lv_text_get_size(&sz, text, font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-    return static_cast<lv_coord_t>(sz.x);
+    return ScreenMeasureTextWidth(font, text);
 }
 
 // 单行截断：过长则末尾加「…」，按像素宽度预算。
@@ -225,32 +221,7 @@ std::string TruncateFilenameKeepExt(const std::string& name, const lv_font_t* fo
 }
 
 void Book_SetFilenameMiddle(lv_obj_t* label, const char* filename) {
-    lv_obj_update_layout(label);
-    const auto* font = lv_obj_get_style_text_font(label, LV_PART_MAIN);
-    const int width = lv_obj_get_content_width(label);
-    std::string text = filename ? filename : "";
-    if (width > 0 && Book_MeasureTextWidth(font, text.c_str()) > width) {
-        size_t middle = text.size() / 2;
-        while (middle > 0 && (static_cast<unsigned char>(text[middle]) & 0xC0) == 0x80) --middle;
-        std::string head = text.substr(0, middle);
-        std::string tail = text.substr(middle);
-        while (!head.empty() || !tail.empty()) {
-            if (head.size() >= tail.size()) {
-                size_t end = head.size() - 1;
-                while (end > 0 && (static_cast<unsigned char>(head[end]) & 0xC0) == 0x80) --end;
-                head.resize(end);
-            } else {
-                size_t next = 1;
-                while (next < tail.size() && (static_cast<unsigned char>(tail[next]) & 0xC0) == 0x80) ++next;
-                tail.erase(0, next);
-            }
-            text = head + "…" + tail;
-            if (Book_MeasureTextWidth(font, text.c_str()) <= width) break;
-        }
-        if (Book_MeasureTextWidth(font, text.c_str()) > width) text.clear();
-    }
-    lv_label_set_long_mode(label, LV_LABEL_LONG_CLIP);
-    lv_label_set_text(label, text.c_str());
+    ScreenSetFilenameMiddle(label, filename);
 }
 
 void Book_DisableScroll(lv_obj_t* obj) {

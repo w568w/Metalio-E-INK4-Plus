@@ -33,6 +33,10 @@ constexpr lv_coord_t kSettingsBrightnessButtonH = UiSy(38);
 constexpr lv_coord_t kSettingsBrightnessSliderGap = UiSx(18);
 void SettingsStyleBrightnessButton(lv_obj_t* button);
 
-/** @brief 创建整行可选中选项 */
+/**
+ * @brief 创建整行可选中选项
+ * @param fit_label 文案随按钮尺寸缩放字号；需要自己按宽度截断文案时（如文件名中间省略）
+ *                  传 false
+ */
 lv_obj_t* SettingsCreateSelectableOption(lv_obj_t* parent, const char* title, lv_event_cb_t cb,
-                                         intptr_t user_data);
+                                         intptr_t user_data, bool fit_label = true);
