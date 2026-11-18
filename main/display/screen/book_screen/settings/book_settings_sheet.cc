@@ -360,7 +360,30 @@ constexpr int kReadingCardBorderWidth = 2; // 顶部及导航横向分隔线宽�
 struct SheetBinding { lv_obj_t* button;lv_event_cb_t event;int value;bool mask; };
 static std::vector<SheetBinding> s_sheet_bindings;
 static int s_toc_count = 0;
-constexpr int kSheetProgressBase = 10000; // 进度跳转编码起点，与目录索引区分
+// 原生目录与宿主目录共用显示逻辑；跳转仍分别由文档会话与宿主处理。
+struct SheetToc {
+    reader::BookSession& Session() const { return *Book_State().reader.session; }
+    const ReaderLaunch& launch = Book_State().reader.launch;
+    // 宿主给的下标无效时按文档目录显示，不要拿它去索引。
+    const HostToc* host = launch.host_toc && launch.host_toc->Valid() ? &*launch.host_toc : nullptr;
+    int Count() const { return host ? static_cast<int>(host->toc->entries.size()) : Session().TocCount(); }
+    int Current() const { return host ? host->index : Session().CurrentTocIndex(); }
+    bool Home() const { return !host && Session().TocStartsAfterFirstPage(); }
+    bool Building() const { return !host && Session().LiveRelayoutPending(); }
+    struct EntryView { const char* title; bool selectable; }; // title 不为空，卷标题等分组行以 selectable 区分。
+    // 只在 0 <= index < Count() 时调用。
+    EntryView At(int index) const {
+        if (host) return {host->toc->entries[index].title.c_str(), host->toc->entries[index].selectable};
+        const auto* entry = Session().TocAt(index);
+        return {entry ? entry->title.c_str() : "", true};
+    }
+    int Adjacent(int direction) const {
+        if (host) return host->Adjacent(direction);
+        // 文档目录项都带正文锚点，卷标题也可跳转；只有宿主目录含不可选分组。
+        const int index = Current() + direction;
+        return index >= 0 && index < Count() ? index : -1;
+    }
+};
 static int s_toc_items = 0; // 包含各页首页入口的显示项总数
 static bool s_toc_home = false; // 目录页是否为首页入口预留一行
 static bool s_toc_building = false;
@@ -536,9 +559,10 @@ static void SheetScrollEnd(lv_event_t* e) {
         settings.reader_sheet_scrolling = false;
         EpdSetUiScrolling(false);
         const auto& session=Book_State().reader.session;
-        if(tab==0 && session && (s_toc_count!=session->TocCount() ||
-            s_toc_building!=session->LiveRelayoutPending() ||
-            s_toc_home!=session->TocStartsAfterFirstPage())) RequestSettingsSheetPaint();
+        const SheetToc toc;
+        if(tab==0 && session && (s_toc_count!=toc.Count() ||
+            s_toc_building!=toc.Building() ||
+            s_toc_home!=toc.Home())) RequestSettingsSheetPaint();
     }
 }
 static bool SheetNavigationReady() {
@@ -547,27 +571,42 @@ static bool SheetNavigationReady() {
         st.reader.layout_again || st.reader.opening.load()) return false;
     return !st.reader.deferred_cleanup && !st.reader.standby_paused;
 }
-static void SheetJumpAsync(void* data) {
+static void SheetJump(reader::BookSession::NavigationKind kind, int target) {
     if (!SheetNavigationReady()) return;
-    const int encoded = static_cast<int>(reinterpret_cast<intptr_t>(data));
-    const bool progress = encoded >= kSheetProgressBase;
-    const auto kind = progress ? reader::BookSession::NavigationKind::kProgress
-                               : reader::BookSession::NavigationKind::kToc;
-    const int target = progress ? encoded - kSheetProgressBase : encoded;
+    const SheetToc toc;
+    // 宿主目录由宿主自己打开章节；进度跳转与文档章节跳转仍交给文档会话。
+    if (kind == reader::BookSession::NavigationKind::kToc && toc.host) {
+        if (toc.host->Select(target)) HideReadChrome();
+        return;
+    }
     const bool ok = RequestReaderNavigation(kind, target);
     if (ok) {
         HideReadChrome();
         RequestRenderReaderPage();
     }
 }
+static void SheetJumpAsync(void* data) {
+    SheetJump(reader::BookSession::NavigationKind::kToc,
+              static_cast<int>(reinterpret_cast<intptr_t>(data)));
+}
 static void SheetTocJump(lv_event_t* e) {
     lv_event_stop_bubbling(e);
     BookLvAsync(SheetJumpAsync, lv_event_get_user_data(e));
+}
+static void SheetHomeJump(lv_event_t* e) {
+    lv_event_stop_bubbling(e);
+    BookLvAsync([](void*) { SheetJump(reader::BookSession::NavigationKind::kProgress, 0); });
 }
 static void SheetChapterAsync(void* data) {
     auto& st=Book_State();
     if(!SheetNavigationReady() || st.reader.read_chrome!=BookUiState::ReadChrome::kSettings)return;
     const int delta=static_cast<int>(reinterpret_cast<intptr_t>(data));
+    const SheetToc toc;
+    if (toc.host) {
+        const int target = toc.Adjacent(delta);
+        if (target >= 0) SheetJump(reader::BookSession::NavigationKind::kToc, target);
+        return;
+    }
     const auto kind=st.reader.session->IsPageImagesMode() ? reader::BookSession::NavigationKind::kDelta
                                                         : reader::BookSession::NavigationKind::kChapterDelta;
     if(RequestReaderNavigation(kind, delta)) {
@@ -581,7 +620,10 @@ static void SheetChapter(lv_event_t* e) {
 }
 static void SheetSeek(lv_event_t* e) {
     const int value = lv_slider_get_value(static_cast<lv_obj_t*>(lv_event_get_target(e)));
-    BookLvAsync(SheetJumpAsync, reinterpret_cast<void*>(static_cast<intptr_t>(kSheetProgressBase + value)));
+    BookLvAsync([](void* data) {
+        SheetJump(reader::BookSession::NavigationKind::kProgress,
+                  static_cast<int>(reinterpret_cast<intptr_t>(data)));
+    }, reinterpret_cast<void*>(static_cast<intptr_t>(value)));
 }
 static lv_obj_t* SheetSlider(lv_obj_t* parent, int value, int max, int w) {
     auto* slider = lv_slider_create(parent);
@@ -1398,17 +1440,40 @@ static void BuildSheetFonts(lv_obj_t* body) {
         AddNumericRow(body, "", kAdjustFont, size, 20, 80, 1, vector);
     }
 }
-static void BuildSheetToc(lv_obj_t* body) {
-    auto& st = Book_State(); auto& session = *st.reader.session;
-    // Chapter metadata is already loaded. Submit the complete card once;
-    // flushing a transient hint starts panel power-up during row allocation.
-    lv_obj_update_layout(body);
-    const bool landscape=LV_HOR_RES>LV_VER_RES;
-    const int body_w=lv_obj_get_content_width(body),body_h=lv_obj_get_content_height(body);
-    if(landscape)lv_obj_set_layout(body,LV_LAYOUT_NONE);
-    const int head_w=landscape?(body_w-16)/2:body_w;
-    auto* head = SheetBox(body, head_w, landscape?body_h:UiSy(184));
-    const int ch=landscape?body_h*3/5:UiSy(172);
+// 作者字段常见占位值，统一显示为“未知”。
+static std::string TocAuthorName(const reader::BookSession& session) {
+    std::string name = session.Author();
+    const auto first = name.find_first_not_of(" \t\r\n");
+    if (first == std::string::npos) return Lang::Strings::COMMON_UNKNOWN;
+    name = name.substr(first, name.find_last_not_of(" \t\r\n") - first + 1);
+    if (name == "未知" || name == "未命名" || name == "unknown" || name == "Unknown" || name == "null" ||
+        name == Lang::Strings::SETTINGS_FRONTLIGHT_BRIGHTNESS_DEC || name == "　")
+        return Lang::Strings::COMMON_UNKNOWN;
+    return name;
+}
+
+// 宿主没有封面：一行书名一行作者，列表接在下面占满宽度。
+static int BuildHostTocHead(lv_obj_t* body, int head_w, const SheetToc& toc) {
+    const auto author_name = TocAuthorName(toc.Session());
+    const int head_h = UiSy(112);
+    auto* head = SheetBox(body, head_w, head_h);
+    auto* title = SheetLabel(head, toc.host->toc->title.c_str(), Book_ListFont());
+    lv_obj_set_size(title, head_w, UiSy(68));
+    lv_label_set_long_mode(title, LV_LABEL_LONG_DOT);
+    auto* author = SheetLabel(head, author_name.c_str());
+    lv_obj_set_size(author, head_w, Book_ItemFont()->line_height);
+    lv_label_set_long_mode(author, LV_LABEL_LONG_DOT);
+    lv_obj_set_pos(author, 0, UiSy(76));
+    return head_h;
+}
+
+// 文档目录：封面加书名作者，横屏时与目录列表左右分栏。
+static int BuildDocTocHead(lv_obj_t* body, reader::BookSession& session, int head_w, int height, bool landscape) {
+    auto& st = Book_State();
+    const auto author_name = TocAuthorName(session);
+    const int head_h = landscape ? height : UiSy(184);
+    auto* head = SheetBox(body, head_w, head_h);
+    const int ch=landscape?height*3/5:UiSy(172);
     const int cw=landscape?ch*140/172:UiSx(140); // Wider cover in both orientations; height stays unchanged.
     const auto& info = session.Info();
     bool fill = false;
@@ -1420,41 +1485,50 @@ static void BuildSheetToc(lv_obj_t* body) {
     }
     auto* title = SheetLabel(head, session.Title().c_str(), Book_ListFont());
     const int info_x=cw+UiSx(20);
-    const int cover_top=landscape?(body_h-ch)/2:0;
+    const int cover_top=landscape?(height-ch)/2:0;
     lv_obj_set_width(title,head_w-info_x);lv_label_set_long_mode(title,LV_LABEL_LONG_DOT);
     lv_obj_set_pos(title,info_x,landscape?cover_top+ch*20/172:UiSy(20));
     if(landscape)lv_obj_set_height(title,Book_ListFont()->line_height*2);
-    std::string author_name = session.Author();
-    const auto first = author_name.find_first_not_of(" \t\r\n");
-    if (first == std::string::npos) author_name = Lang::Strings::COMMON_UNKNOWN;
-    else author_name = author_name.substr(first, author_name.find_last_not_of(" \t\r\n") - first + 1);
-    if (author_name == "未知" || author_name == "未命名" || author_name == "unknown" || author_name == "Unknown" || author_name == "null" || author_name == Lang::Strings::SETTINGS_FRONTLIGHT_BRIGHTNESS_DEC || author_name == "　") author_name = Lang::Strings::COMMON_UNKNOWN;
     auto* author = SheetLabel(head, author_name.c_str());
     lv_obj_set_size(author,head_w-info_x,Book_ItemFont()->line_height);
     lv_label_set_long_mode(author,LV_LABEL_LONG_DOT);
     lv_obj_set_pos(author,info_x,landscape?cover_top+ch-Book_ItemFont()->line_height-6:UiSy(142));
+    return head_h;
+}
+
+static void BuildSheetToc(lv_obj_t* body) {
+    auto& st = Book_State();
+    const SheetToc toc;
+    // Chapter metadata is already loaded. Submit the complete card once;
+    // flushing a transient hint starts panel power-up during row allocation.
     lv_obj_update_layout(body);
+    // 宿主没有封面，目录使用满宽；文档横屏保留封面与列表双栏。
+    const bool landscape=LV_HOR_RES>LV_VER_RES && !toc.host;
+    const int body_w=lv_obj_get_content_width(body),body_h=lv_obj_get_content_height(body);
+    if(landscape)lv_obj_set_layout(body,LV_LAYOUT_NONE);
     const int width = landscape?(body_w-16)/2:body_w;
-    auto* list = SheetPagedList(body,width,landscape?body_h:std::max<int>(1,body_h-UiSy(184)));
+    const int head_h = toc.host ? BuildHostTocHead(body, width, toc)
+                                : BuildDocTocHead(body, toc.Session(), width, body_h, landscape);
+    auto* list = SheetPagedList(body,width,landscape?body_h:std::max<int>(1,body_h-head_h));
     if(landscape) {
         lv_obj_set_pos(lv_obj_get_parent(lv_obj_get_parent(list)),(body_w+16)/2,0);
         auto* divider=SheetBox(body,2,body_h);lv_obj_set_pos(divider,body_w/2-1,0);
         lv_obj_set_style_bg_color(divider,lv_color_black(),0);lv_obj_set_style_bg_opa(divider,LV_OPA_COVER,0);
     }
     s_toc_list=list;
-    s_toc_count=session.TocCount();
-    s_toc_home=session.TocStartsAfterFirstPage();
+    s_toc_count=toc.Count();
+    s_toc_home=toc.Home();
     const int chapters_per_page = kTocPageRows - (s_toc_home ? 1 : 0);
     const int home_rows = s_toc_home ? (s_toc_count + chapters_per_page - 1) / chapters_per_page : 0;
     s_toc_items = s_toc_count + home_rows;
-    s_toc_building=session.LiveRelayoutPending();
+    s_toc_building=toc.Building();
     s_toc_first=-1;
     lv_obj_set_layout(list,LV_LAYOUT_NONE);
     lv_obj_set_style_pad_bottom(list,0,0);
     lv_obj_update_layout(list);
     s_toc_height = std::max<int>(1, lv_obj_get_content_height(list) / kTocPageRows);
     if (!s_toc_count) {
-        Book_ShowMessage(list, session.LiveRelayoutPending() ?
+        Book_ShowMessage(list, toc.Building() ?
             Lang::Strings::BOOK_TOC_BUILDING : Lang::Strings::BOOK_TOC_EMPTY, Book_ItemFont());
         return;
     }
@@ -1469,7 +1543,7 @@ static void BuildSheetToc(lv_obj_t* body) {
         s_toc_rows.push_back(row);
     }
     if(st.settings.reader_scroll[0]<0) {
-        const int current=std::max(0,session.CurrentTocIndex());
+        const int current=std::max(0,toc.Current());
         const int display = s_toc_home ? current / chapters_per_page * kTocPageRows : current;
         st.settings.reader_scroll[0] = display * s_toc_height;
     }
@@ -1486,34 +1560,43 @@ static void BindTocRows() {
     if(first==s_toc_first)return;
     s_toc_binding=true;s_toc_first=first;
     auto& session=*Book_State().reader.session;
+    const SheetToc toc;
     const int width=lv_obj_get_width(s_toc_list);
-    const int current_chapter = session.CurrentTocIndex();
+    const int current_chapter = toc.Current();
     const bool at_home = s_toc_home && session.BookCurrentPage() == 0;
-    const char* home_title = s_toc_home ? session.TocHomeTitle() : nullptr;
+    const char* home_title = s_toc_home ? session.TocHomeTitle() : "";
     for(size_t slot=0;slot<s_toc_rows.size();++slot) {
         const int display = first + static_cast<int>(slot);
         const int page = display / kTocPageRows;
         const int page_row = display % kTocPageRows;
         const bool home = s_toc_home && page_row == 0;
         const int i = s_toc_home ? page * (kTocPageRows - 1) + page_row - 1 : display;
-        const auto* entry = home ? nullptr : session.TocAt(i);
-        if (!home && !entry) continue;
-        const char* title = home ? home_title : entry->title.c_str();
+        auto* row=s_toc_rows[slot];
+        if (!home && (i < 0 || i >= toc.Count())) {
+            lv_obj_add_flag(row, LV_OBJ_FLAG_HIDDEN);
+            continue;
+        }
+        const auto entry = home ? SheetToc::EntryView{home_title, true} : toc.At(i);
+        const char* title = entry.title;
         std::string ordinal, name;
-        const bool split = !home && reader::SplitChapterHeading(entry->title, ordinal, name);
+        const bool split = !home && entry.selectable && reader::SplitChapterHeading(entry.title, ordinal, name);
         const bool current = home ? at_home : !at_home && i == current_chapter;
-        const auto* font = current ? Book_ListFont() : Book_ItemFont();
+        const lv_font_t* font = current ? Book_ListFont() : Book_ItemFont();
+        if (!entry.selectable) font = Book_HeadingFont(); // 卷标题比章节粗，且不可点。
         const int ordinal_w = split ? std::min(width / 2, std::max<int>(UiSx(90), Book_MeasureTextWidth(font, ordinal.c_str()) + UiSx(12))) : 0;
         const int text_w = width - ordinal_w - UiSx(16);
-        auto* row=s_toc_rows[slot];
         lv_obj_remove_flag(row,LV_OBJ_FLAG_HIDDEN);
         lv_obj_set_y(row,display*s_toc_height);
         lv_obj_remove_event_cb(row,SheetTocJump);
-        const int target = home ? kSheetProgressBase : i;
-        lv_obj_add_event_cb(row, SheetTocJump, LV_EVENT_CLICKED,
-            reinterpret_cast<void*>(static_cast<intptr_t>(target)));
+        lv_obj_remove_event_cb(row,SheetHomeJump);
+        if (entry.selectable) {
+            lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_add_event_cb(row, home ? SheetHomeJump : SheetTocJump, LV_EVENT_CLICKED,
+                reinterpret_cast<void*>(static_cast<intptr_t>(i)));
+        } else lv_obj_remove_flag(row, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_set_style_radius(row, 0, 0);
-        lv_obj_set_style_border_side(row, LV_BORDER_SIDE_BOTTOM, 0);
+        lv_obj_set_style_border_side(row, entry.selectable ? LV_BORDER_SIDE_BOTTOM :
+            static_cast<lv_border_side_t>(LV_BORDER_SIDE_TOP | LV_BORDER_SIDE_BOTTOM), 0);
         auto* text = lv_obj_get_child(row, 0);
         lv_obj_set_style_text_font(text, font, 0);
         lv_obj_set_size(text, text_w, font->line_height);
@@ -1785,6 +1868,7 @@ static void BuildSheetBookmarks(lv_obj_t* body) {
 }
 
 static void BuildSheetDuration(lv_obj_t* body) {
+    const SheetToc toc;
     auto& session = *Book_State().reader.session;
     lv_obj_update_layout(body);
     const int width = lv_obj_get_content_width(body);
@@ -1839,8 +1923,8 @@ static void BuildSheetDuration(lv_obj_t* body) {
     s_progress_slider=slider;
     lv_obj_add_event_cb(slider, SheetSeek, LV_EVENT_RELEASED, nullptr);
     const bool ready = SheetNavigationReady();
-    SetSheetBtnEnabled(prev, ready && (comic ? session.HasPrevPage() : session.CurrentTocIndex() > 0));
-    SetSheetBtnEnabled(next, ready && (comic ? session.HasNextPage() : session.CurrentTocIndex() + 1 < session.TocCount()));
+    SetSheetBtnEnabled(prev, ready && (comic ? session.HasPrevPage() : toc.Adjacent(-1) >= 0));
+    SetSheetBtnEnabled(next, ready && (comic ? session.HasNextPage() : toc.Adjacent(1) >= 0));
     if (!ready) lv_obj_add_state(slider, LV_STATE_DISABLED);
 }
 } // namespace
@@ -1874,6 +1958,7 @@ static void SetLiveSheetButton(lv_obj_t* button,bool active) {
     if (active) EpdRequestBlackEqualization();
 }
 bool RefreshReadingSheetInPlace() {
+    const SheetToc toc;
     auto& st=Book_State();
     if(!s_live_body || s_live_body!=st.settings.reader_sheet_body || !lv_obj_is_valid(s_live_body) ||
        s_live_tab!=st.settings.reader_tab ||
@@ -1882,8 +1967,8 @@ bool RefreshReadingSheetInPlace() {
     if (s_live_tab == 3 && s_live_settings_page != st.settings.reader_settings_page) return false;
     if (s_live_tab == 3 && (st.settings.reader_settings_page == kSettingsHome || st.settings.reader_settings_page == kSettingsWriting)) return false;
     if(s_live_tab==0) {
-        if(!st.reader.session || !s_toc_count || st.reader.session->TocCount()!=s_toc_count ||
-            st.reader.session->TocStartsAfterFirstPage()!=s_toc_home)return false;
+        if(!st.reader.session || !s_toc_count || toc.Count()!=s_toc_count ||
+            toc.Home()!=s_toc_home)return false;
         s_toc_first=-1;
         BindTocRows();
         return true;
@@ -1932,8 +2017,8 @@ bool RefreshReadingSheetInPlace() {
         if(s_progress_slider) {
             lv_slider_set_value(s_progress_slider,session.ReadingProgressX10(),LV_ANIM_OFF);
             const bool ready=SheetNavigationReady();
-            SetSheetBtnEnabled(s_chapter_prev,ready && (session.IsPageImagesMode() ? session.HasPrevPage() : session.CurrentTocIndex()>0));
-            SetSheetBtnEnabled(s_chapter_next,ready && (session.IsPageImagesMode() ? session.HasNextPage() : session.CurrentTocIndex()+1<session.TocCount()));
+            SetSheetBtnEnabled(s_chapter_prev,ready && (session.IsPageImagesMode() ? session.HasPrevPage() : toc.Adjacent(-1)>=0));
+            SetSheetBtnEnabled(s_chapter_next,ready && (session.IsPageImagesMode() ? session.HasNextPage() : toc.Adjacent(1)>=0));
             if(ready)lv_obj_remove_state(s_progress_slider,LV_STATE_DISABLED);
             else lv_obj_add_state(s_progress_slider,LV_STATE_DISABLED);
         }
@@ -2112,7 +2197,6 @@ void BuildReadingBottomSheet() {
     lv_obj_set_style_border_color(nav, lv_color_black(), 0);
     const char* tabs[] = {Lang::Strings::BOOK_TOC, Lang::Strings::BOOK_FONT_TITLE, Lang::Strings::BOOK_BOOKMARKS, Lang::Strings::HOME_APP_SETTINGS};
     const lv_image_dsc_t* icons[] = {SheetFontIcon(), SheetTocIcon(), SheetBookmarkNavIcon(), SheetSettingsIcon()};
-    const int first_tab = st.reader.launch.show_toc ? 0 : 1;
     const int bottom_gap = LV_HOR_RES>LV_VER_RES?8:UiSy(10); // Additional space inside the display's configured 8px content inset.
     if(st.settings.reader_tab==2 && st.settings.bookmark_multi) {
         const char* actions[]={Lang::Strings::COMMON_CANCEL,Lang::Strings::COMMON_SELECT_ALL,Lang::Strings::COMMON_REMOVE};
@@ -2137,9 +2221,9 @@ void BuildReadingBottomSheet() {
             if (i == 2) SetSheetBtnEnabled(button,
                 (ttf_multi ? TtfSelectedCount() : FontSelectedCount()) > 0 && (ttf_multi || !ReaderWorkersBusy()));
         }
-    } else for (int i = first_tab; i < 4; ++i) {
-        const int width = sheet_width / (4 - first_tab);
-        auto* btn = SheetBox(nav, width, nav_h - bottom_gap - 2);lv_obj_set_pos(btn, (i - first_tab) * width, 1);
+    } else for (int i = 0; i < 4; ++i) {
+        const int width = sheet_width / 4;
+        auto* btn = SheetBox(nav, width, nav_h - bottom_gap - 2);lv_obj_set_pos(btn, i * width, 1);
         lv_obj_add_flag(btn, LV_OBJ_FLAG_CLICKABLE);HapticAttachClick(btn);
         lv_obj_add_event_cb(btn, SheetTabEvent, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
         auto* icon = lv_image_create(btn);

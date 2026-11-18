@@ -219,7 +219,6 @@ void ShowReadSettingsSheet(bool default_duration) {
         ResetBookmarkSelection();
         st.settings.reader_tab = 4;
     }
-    if (!st.reader.launch.show_toc && st.settings.reader_tab == 0) st.settings.reader_tab = 1;
     if (st.settings.reader_tab == 1) StartReadFontScan();
     else CancelReadFontScan();
     if (st.settings.reader_tab == 0 || st.settings.reader_tab == 1)
@@ -235,7 +234,6 @@ void ShowReadSettingsSheet(bool default_duration) {
 }
 
 void OpenReadToc() {
-    if (!Book_State().reader.launch.show_toc) return;
     ResetBookmarkSelection();
     Book_State().settings.reader_tab = 0;
     ShowReadSettingsSheet(false);

@@ -33,6 +33,7 @@ with tempfile.TemporaryDirectory() as directory:
     run(host / 'files_test', temp / 'config.json', epub)
     run(host / 'sd_file_test', temp)
     run(host / 'sd_data_layout_test')
+    run(host / 'reader_toc_test')
     run('node', tests / 'portal_test.js', app / 'novelia_portal.cc')
 preview = repo / 'build/novelia-emulator-preview'
 run('cmake', '-S', repo / 'tools/ebook/emulator', '-B', preview, '-DNOVELIA_UI_PREVIEW=ON')

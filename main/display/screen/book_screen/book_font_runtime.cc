@@ -93,6 +93,12 @@ const lv_font_t* Book_ItemFont() {
     return fontpack_lv_font_ui();
 }
 
+// 卷标题等分组行：固件 fontpack 30@4（加粗）
+const lv_font_t* Book_HeadingFont() {
+    const lv_font_t* f = fontpack_lv_font_get(30, 4);
+    return f != nullptr ? f : Book_ItemFont();
+}
+
 // 正文字体由 NVS 选择，支持 TTF/OTF 和 .ef。
 const lv_font_t* BookFont() {
     if (s_ttf_font) return TtfRuntimeFont(s_ttf_font);

@@ -58,6 +58,7 @@ struct State {
     View settings_return = View::Folders;
     View login_return = View::Settings;
     std::vector<Item> folders, novels, chapters;
+    std::shared_ptr<const ReaderToc> reader_toc; // 与 chapters 同序，宿主回传的目录下标对两者都适用。
     Item folder, novel;
     std::string message, title, username, mode, portal_url;
     // prefetch 和空 proxy_summary 是首次配置结果返回前的 UI 占位，由 LoadFolders 一起更新。
@@ -258,6 +259,10 @@ void LoadToc() {
         auto error = std::move(data.error);
         auto items = Toc(data.json.get(), data.json ? &error : nullptr);
         auto book_title = Title(data.json.get());
+        auto reader_toc = std::make_shared<ReaderToc>();
+        reader_toc->title = book_title.empty() ? book.title : book_title;
+        for (const auto& item : items)
+            reader_toc->entries.push_back({item.title, !item.volume});
         auto progress = Parse(state.service.Last(book));
         auto remote = Text(data.json.get(), "lastReadChapterId");
         auto last = ResumeChapter(items, Text(progress.get(), "chapter"), remote);
@@ -268,9 +273,10 @@ void LoadToc() {
                     state.service.Shown(book, item);
                     break;
                 }
-        Complete(generation, [items = std::move(items), error, book_title, last] {
+        Complete(generation, [items = std::move(items), reader_toc, error, book_title, last] {
             ESP_LOGI("Novelia", "directory loaded: count=%u", (unsigned)items.size());
             state.chapters = items;
+            state.reader_toc = reader_toc;
             state.view = View::Toc;
             state.message = error;
             state.title = book_title;
@@ -321,7 +327,15 @@ void OpenChapter(int index, StartAt start) {
             }
             state.message.clear();
             ReaderLaunch request;
-            request.show_toc = false;
+            HostToc host_toc;
+            host_toc.toc = state.reader_toc;
+            host_toc.index = index;
+            host_toc.open = [](int target) {
+                if (state.busy) return false;
+                OpenChapter(target, StartAt::First);
+                return state.busy;
+            };
+            request.host_toc = host_toc;
             request.book.path = result.path;
             request.book.title = book.title + " · " + chapter.title;
             request.book.format = reader::BookFormat::kEpub;
@@ -337,12 +351,9 @@ void OpenChapter(int index, StartAt start) {
                 state.busy = false;
                 state.message.clear();
             };
-            request.adjacent = [index](int direction) {
-                int next = index + direction;
-                while (next >= 0 && next < static_cast<int>(state.chapters.size()) &&
-                       state.chapters[next].volume)
-                    next += direction;
-                if (next < 0 || next >= static_cast<int>(state.chapters.size())) {
+            request.adjacent = [host_toc](int direction) {
+                const int next = host_toc.Adjacent(direction);
+                if (next < 0) {
                     ScreenShowToast(direction > 0 ? Lang::Strings::NOVELIA_LAST_CHAPTER
                                                   : Lang::Strings::NOVELIA_FIRST_CHAPTER);
                     return true;
@@ -351,7 +362,7 @@ void OpenChapter(int index, StartAt start) {
                     OpenChapter(next, direction > 0 ? StartAt::First : StartAt::Last);
                 return true;
             };
-            request.opened = [book, chapter, translation, index] {
+            request.opened = [book, chapter, translation, index, host_toc] {
                 state.last_chapter = chapter.id;
                 state.page = index / kRows;
                 Submit([book, chapter] {
@@ -366,10 +377,8 @@ void OpenChapter(int index, StartAt start) {
                     }
                 });
                 if (state.prefetch) {
-                    int next = index + 1;
-                    while (next < static_cast<int>(state.chapters.size()) && state.chapters[next].volume)
-                        ++next;
-                    if (next < static_cast<int>(state.chapters.size())) {
+                    const int next = host_toc.Adjacent(1);
+                    if (next >= 0) {
                         auto following = state.chapters[next];
                         Submit([book, following, translation] {
                             Download(state.service, book, following, translation);
@@ -566,6 +575,7 @@ void Logout() {
                 state.folders.clear();
                 state.novels.clear();
                 state.chapters.clear();
+                state.reader_toc.reset();
                 state.catalog_pages.clear();
             }
             state.message = ok ? Lang::Strings::NOVELIA_LOGOUT_DONE : Lang::Strings::NOVELIA_LOGOUT_FAILED;
