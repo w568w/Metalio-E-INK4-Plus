@@ -8,6 +8,7 @@ import zipfile
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--idf', required=True, type=Path)
+parser.add_argument('--linux-image', type=Path)
 args = parser.parse_args()
 tests = Path(__file__).resolve().parent
 repo = tests.parents[1]
@@ -34,10 +35,17 @@ with tempfile.TemporaryDirectory() as directory:
     run(host / 'sd_file_test', temp)
     run(host / 'sd_data_layout_test')
     run(host / 'reader_toc_test')
+    run(host / 'linux_console_test')
+    image = args.linux_image or repo / 'build/linux-assets/metalio/e-ink/linux/Image'
+    if image.exists():
+        run(host / 'linux_boot_test', image)
+    else:
+        print(f'SKIP linux_boot_test: {image} (run python tests/linux/prepare.py)')
     run('node', tests / 'portal_test.js', app / 'novelia_portal.cc')
 preview = repo / 'build/novelia-emulator-preview'
-run('cmake', '-S', repo / 'tools/ebook/emulator', '-B', preview, '-DNOVELIA_UI_PREVIEW=ON')
-run('cmake', '--build', preview, '--target', 'novelia_preview', '-j', '4')
+run('cmake', '-S', repo / 'tools/ebook/emulator', '-B', preview, '-DAPP_UI_PREVIEW=ON')
+run('cmake', '--build', preview, '--target', 'novelia_preview', 'linux_preview', '-j', '4')
+run(preview / 'bin/linux_preview', repo / 'main/assets/fonts/font.fontpack', preview / 'linux-screens')
 run(preview / 'bin/novelia_preview', repo / 'main/assets/fonts/font.fontpack', preview / 'screens')
 host = repo / 'build/proxy-tests-http'
 host.mkdir(parents=True, exist_ok=True)
