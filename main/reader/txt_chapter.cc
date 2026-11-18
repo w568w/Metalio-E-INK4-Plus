@@ -385,7 +385,7 @@ bool IsTxtChapterTitleLine(const char* utf8, size_t len) {
     return false;
 }
 
-bool SplitChapterHeading(const std::string& title, std::string& ordinal, std::string& name) {
+bool SplitChapterHeading(std::string_view title, std::string& ordinal, std::string& name) {
     ordinal.clear();
     name.clear();
     if (title.empty()) {

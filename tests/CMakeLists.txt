@@ -94,3 +94,10 @@ target_compile_options(sd_data_layout_test PRIVATE
     ${WARNINGS} -Wno-unused-variable -Wno-unused-parameter -ffunction-sections -fdata-sections)
 target_link_libraries(sd_data_layout_test PRIVATE host_env)
 target_link_options(sd_data_layout_test PRIVATE -Wl,--gc-sections)
+
+# ReaderLaunch 引用了 LVGL 类型；这里只需头文件，不构建或链接图形库。
+add_executable(reader_toc_test reader_toc_test.cc
+    "${MAIN}/reader/txt_chapter.cc" "${MAIN}/reader/text_encoding.cc")
+target_compile_options(reader_toc_test PRIVATE ${WARNINGS} -UNDEBUG)
+target_compile_definitions(reader_toc_test PRIVATE LV_CONF_SKIP=1)
+target_include_directories(reader_toc_test PRIVATE "${MAIN}" "${ESP_COMPAT}" "${REPO}/tools/ebook/emulator/lvgl")

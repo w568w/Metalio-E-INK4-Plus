@@ -9,6 +9,8 @@
 const lv_font_t* Book_ListFont();
 /** @brief 书库列表 item：固件 fontpack UI 默认字（30@2） */
 const lv_font_t* Book_ItemFont();
+/** @brief 卷标题等分组行：固件 fontpack 30@4（加粗） */
+const lv_font_t* Book_HeadingFont();
 /** @brief 获取正文 TTF/OTF 或 .ef 字体，加载失败时回退默认字体。 */
 const lv_font_t* BookFont();
 /** @brief 获取正文分页测宽视图，字宽与绘制字体一致，仅供布局计算。 */

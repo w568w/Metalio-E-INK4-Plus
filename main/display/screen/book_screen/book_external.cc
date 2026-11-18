@@ -5,6 +5,7 @@
 #include "screen_common.h"
 #include "vk_key_handler.h"
 #include <utility>
+#include <esp_log.h>
 
 namespace {
 lv_obj_t* Create() {
@@ -20,6 +21,8 @@ lv_obj_t* CommitRequestedBook() {
 }
 } // namespace
 void BookExternalOpen(ReaderLaunch next) {
+    if (next.host_toc && !next.host_toc->Valid())
+        ESP_LOGW("Book", "Invalid host TOC index %d; using document TOC", next.host_toc->index);
     auto& reader = Book_State().reader;
     const bool replacing = reader.IsHostSession();
     reader.pending_launch = std::move(next);

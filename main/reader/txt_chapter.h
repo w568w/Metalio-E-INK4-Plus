@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "book_toc.h"
@@ -30,7 +31,7 @@ inline bool IsTxtChapterTitleLine(const std::string& s) {
  * @param name 输出章节名，可为空（空则不显示第二行）
  * @return 是否识别到序数前缀
  */
-bool SplitChapterHeading(const std::string& title, std::string& ordinal, std::string& name);
+bool SplitChapterHeading(std::string_view title, std::string& ordinal, std::string& name);
 
 /**
  * @brief 正文展示：序数单独一行，有章节名则换行紧跟；无法拆分则原样
