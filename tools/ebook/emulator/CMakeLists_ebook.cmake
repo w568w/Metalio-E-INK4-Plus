@@ -58,8 +58,8 @@ endfunction()
 # 原生 SDL 模拟器（480×800）
 ebook_emulator_target(ebook_sim src/main_ebook.c)
 
-option(NOVELIA_UI_PREVIEW "Build headless Novelia UI checks" OFF)
-if(NOVELIA_UI_PREVIEW)
+option(APP_UI_PREVIEW "Build headless app UI checks" OFF)
+if(APP_UI_PREVIEW)
     set(NOVELIA "${ESP_MAIN}/display/screen/novelia_screen")
     add_executable(novelia_preview
         "${CMAKE_CURRENT_SOURCE_DIR}/../../../tests/novelia/ui_preview/preview.cc" "${NOVELIA}/novelia_ui.cc"
@@ -73,4 +73,20 @@ if(NOVELIA_UI_PREVIEW)
         ${EBOOK_INCLUDES} "${ESP_MAIN}" "${ESP_MAIN}/display" "${ESP_MAIN}/display/font"
         "${ESP_MAIN}/display/screen" "${NOVELIA}" /usr/include/cjson)
     target_link_libraries(novelia_preview PRIVATE lvgl m)
+    set(LINUX_APP "${ESP_MAIN}/display/screen/linux_screen")
+    add_executable(linux_preview
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../../tests/linux/ui_preview.cc" "${LINUX_APP}/linux_ui.cc" "${LINUX_APP}/linux_console.cc"
+        "${ESP_MAIN}/display/screen/screen_keyboard.cc"
+        "${ESP_MAIN}/reader/text_encoding.cc"
+        "${ESP_MAIN}/display/screen/settings_screen/settings_common.cc"
+        "${ESP_MAIN}/display/font/font_awesome_30_1.c"
+        src/font/fontpack_lvgl_emulator.cc src/font/font_loader_emulator.c)
+    target_compile_definitions(linux_preview PRIVATE EBOOK_EMULATOR=1)
+    target_compile_options(linux_preview PRIVATE -UNDEBUG)
+    # stubs/config.h 只提供预览用的显示尺寸，与 Novelia 无关。
+    target_include_directories(linux_preview PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../../../tests/novelia/ui_preview/stubs"
+        ${EBOOK_INCLUDES} "${ESP_MAIN}" "${ESP_MAIN}/display" "${ESP_MAIN}/display/font"
+        "${ESP_MAIN}/display/screen" "${LINUX_APP}")
+    target_link_libraries(linux_preview PRIVATE lvgl m)
+
 endif()
