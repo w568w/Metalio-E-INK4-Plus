@@ -1,9 +1,9 @@
 #pragma once
-#include "novelia_model.h"
+#include "web_novel_model.h"
 #include <lvgl.h>
 #include <functional>
 
-namespace novelia::ui {
+namespace web_novel::ui {
 enum class View { Folders, Novels, Toc, Settings, Login, Count };
 constexpr int kRows = 8;
 
@@ -26,4 +26,4 @@ struct Actions {
 };
 // The caller owns the screen and status bar; only this content container is rebuilt.
 void Render(lv_obj_t* content, const Page& page, const Actions& actions);
-} // namespace novelia::ui
+} // namespace web_novel::ui

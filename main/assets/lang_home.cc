@@ -7,7 +7,7 @@
 #include "assets/lang_log.h"
 #include "assets/lang_haptic.h"
 #include "assets/lang_network.h"
-#include "assets/lang_novelia.h"
+#include "assets/lang_web_novel.h"
 #include "assets/lang_linux.h"
 #include "assets/lang_charging.h"
 #include "assets/lang_wallpaper.h"
@@ -152,7 +152,7 @@
     X(NOVELIA_ON, "开启", "On") \
     X(NOVELIA_OFF, "关闭", "Off") \
     X(NOVELIA_PREFETCH_HINT, "提前缓存下一章，方便翻章时快速阅读", "Cache the next chapter for faster reading") \
-    X(NOVELIA_SCAN_SETUP, "扫码填写节点配置并登录 Novelia", "Scan to set up your proxy and sign in") \
+    X(NOVELIA_SCAN_SETUP, "扫码配置代理与账号", "Scan to set up your proxy and sign in") \
     X(NOVELIA_OPEN_LOGIN, "打开登录页面", "Open sign-in page") \
     X(NOVELIA_NEW_QR, "重新生成二维码", "Generate a new QR code") \
     X(NOVELIA_PROXY_SAVED, "代理设置已保存", "Proxy settings saved") \
@@ -189,10 +189,14 @@
     X(NOVELIA_CHAPTER_SAVE_FAILED, "章节写入失败，请检查 SD 卡", "Could not save the chapter. Check the SD card.") \
     X(NOVELIA_IMAGE_ALT, "插图", "Illustration") \
     X(NOVELIA_IMAGE_PLACEHOLDER, "[插图下载失败或格式不支持]", "[Illustration unavailable]") \
+    X(NOVALPIE_ROUTE_BLOCKED, "Novalpie 拒绝了当前网络的请求，请检查代理设置（403）", "Novalpie rejected this network route. Check proxy settings (403).") \
+    X(NOVALPIE_CAPTCHA_REQUIRED, "请完成人机验证", "Complete the verification") \
+    X(NOVALPIE_UNGROUPED, "未分组", "Ungrouped") \
+    X(NOVALPIE_READER_SESSION_DENIED, "Novalpie 拒绝发放阅读会话", "Novalpie denied the reading session") \
     X(NOVELIA_FOLDERS_SUBTITLE, "我的收藏夹", "My favorites") \
     X(NOVELIA_NOVELS_HEADING, "收藏小说", "Novels") \
     X(NOVELIA_TOC_HEADING, "小说目录", "Chapters") \
-    X(NOVELIA_SETTINGS_HEADING, "Novelia 设置", "Novelia settings") \
+    X(NOVELIA_SETTINGS_HEADING_FMT, "%s 设置", "%s settings") \
     X(NOVELIA_LOGIN_HEADING, "手机登录", "Phone sign-in") \
     X(NOVELIA_LOGIN_HINT, "手机与设备连接同一 Wi-Fi", "Connect your phone to the same Wi-Fi") \
     X(NOVELIA_LOADING_FOLDERS, "正在读取收藏夹…", "Loading favorites…") \
@@ -210,7 +214,7 @@
     X(NOVELIA_LOGOUT_FAILED, "退出登录保存失败", "Could not save the logout") \
     X(NOVELIA_QUEUE_FULL, "工作队列已满，请稍后重试", "Busy, try again later") \
     X(NOVELIA_QUEUE_CREATE_FAILED, "无法创建工作队列", "Could not create the work queue") \
-    X(NOVELIA_WORKER_FAILED, "无法启动 Novelia 工作任务", "Could not start the Novelia worker") \
+    X(NOVELIA_WORKER_FAILED, "无法启动后台任务", "Could not start the background task") \
     X(NOVELIA_SD_BUSY, "SD 卡正在切换或待机，请稍后重试", "The SD card is busy. Try again.") \
     X(NOVELIA_IMAGE_WRITE_FAILED, "章节插图写入失败，请检查 SD 卡", "Could not write chapter image. Check the SD card.") \
     X(NOVELIA_HTTP_INVALID_REQUEST, "无效 HTTP 请求", "Invalid HTTP request") \

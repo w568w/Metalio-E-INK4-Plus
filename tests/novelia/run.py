@@ -12,7 +12,7 @@ parser.add_argument('--linux-image', type=Path)
 args = parser.parse_args()
 tests = Path(__file__).resolve().parent
 repo = tests.parents[1]
-app = repo / "main/display/screen/novelia_screen"
+app = repo / "main/display/screen/web_novel_screen"
 proxy = repo / 'components/proxy_transport'
 
 def run(*cmd):
@@ -41,7 +41,7 @@ with tempfile.TemporaryDirectory() as directory:
         run(host / 'linux_boot_test', image)
     else:
         print(f'SKIP linux_boot_test: {image} (run python tests/linux/prepare.py)')
-    run('node', tests / 'portal_test.js', app / 'novelia_portal.cc')
+    run('node', tests / 'portal_test.js', app / 'web_novel_portal.cc')
 preview = repo / 'build/novelia-emulator-preview'
 run('cmake', '-S', repo / 'tools/ebook/emulator', '-B', preview, '-DAPP_UI_PREVIEW=ON')
 run('cmake', '--build', preview, '--target', 'novelia_preview', 'linux_preview', '-j', '4')

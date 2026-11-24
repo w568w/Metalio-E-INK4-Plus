@@ -1,5 +1,5 @@
 #include "home_screen/home_screen_priv.h"
-#include "novelia_screen/novelia_screen.h"
+#include "web_novel_screen/web_novel_screen.h"
 #include "linux_screen/linux_screen.h"
 #include "assets/lang_linux.h"
 
@@ -72,6 +72,7 @@ void Home_OnAppNameDraw(lv_event_t* e)
     #endif
 
     const char* Home_AppNameLinux() { return Lang::Strings::LINUX_TITLE; }
+    const char* Home_AppNameNovalpie() { return "Novalpie"; }
     const char* Home_AppNameNovelia() { return "Novelia"; }
 
     const AppEntry kBuiltinApps[] = {
@@ -84,7 +85,8 @@ void Home_OnAppNameDraw(lv_event_t* e)
         #if !CONFIG_BOARD_TYPE_METALIO_E_INK4_PLUS_GLOBAL
         {"A:ic_app_home_workbuddy.spng", Home_AppNameWorkBuddy, WorkBuddyScreen::Create},
         #endif
-        {"A:ic_app_home_book.spng", Home_AppNameNovelia, NoveliaScreen::Create},
+        {"A:ic_app_home_book.spng", Home_AppNameNovelia, WebNovelScreen::CreateNovelia},
+        {"A:ic_app_home_book.spng", Home_AppNameNovalpie, WebNovelScreen::CreateNovalpie},
         {"A:ic_app_home_linux.spng", Home_AppNameLinux, LinuxScreen::Create},
     };
 
@@ -99,7 +101,8 @@ void Home_OnAppNameDraw(lv_event_t* e)
         #if !CONFIG_BOARD_TYPE_METALIO_E_INK4_PLUS_GLOBAL
         {"A:ic_app_home_workbuddy.spng", Home_AppNameWorkBuddy, WorkBuddyScreen::Create},
         #endif
-        {"A:ic_app_home_book.spng", Home_AppNameNovelia, NoveliaScreen::Create},
+        {"A:ic_app_home_book.spng", Home_AppNameNovelia, WebNovelScreen::CreateNovelia},
+        {"A:ic_app_home_book.spng", Home_AppNameNovalpie, WebNovelScreen::CreateNovalpie},
         {"A:ic_app_home_linux.spng", Home_AppNameLinux, LinuxScreen::Create},
     };
 

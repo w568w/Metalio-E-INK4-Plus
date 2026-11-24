@@ -76,10 +76,14 @@ extern const char* NOVELIA_CHAPTER_TEXT_FAILED;
 extern const char* NOVELIA_CHAPTER_SAVE_FAILED;
 extern const char* NOVELIA_IMAGE_ALT;
 extern const char* NOVELIA_IMAGE_PLACEHOLDER;
+extern const char* NOVALPIE_UNGROUPED;
+extern const char* NOVALPIE_CAPTCHA_REQUIRED;
+extern const char* NOVALPIE_ROUTE_BLOCKED;
+extern const char* NOVALPIE_READER_SESSION_DENIED;
 extern const char* NOVELIA_FOLDERS_SUBTITLE;
 extern const char* NOVELIA_NOVELS_HEADING;
 extern const char* NOVELIA_TOC_HEADING;
-extern const char* NOVELIA_SETTINGS_HEADING;
+extern const char* NOVELIA_SETTINGS_HEADING_FMT;
 extern const char* NOVELIA_LOGIN_HEADING;
 extern const char* NOVELIA_LOGIN_HINT;
 extern const char* NOVELIA_LOADING_FOLDERS;
@@ -99,4 +103,4 @@ extern const char* NOVELIA_QUEUE_FULL;
 extern const char* NOVELIA_QUEUE_CREATE_FAILED;
 extern const char* NOVELIA_WORKER_FAILED;
 extern const char* NOVELIA_SD_BUSY;
-}
+} // namespace Lang::Strings

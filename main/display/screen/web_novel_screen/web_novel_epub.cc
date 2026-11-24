@@ -1,9 +1,9 @@
-#include "novelia_epub.h"
-#include "novelia_model.h"
+#include "web_novel_epub.h"
+#include "web_novel_model.h"
 #include <cstdio>
 #include <cstdint>
 #include <zlib.h>
-namespace novelia {
+namespace web_novel {
 namespace {
 class Zip {
 public:
@@ -145,4 +145,4 @@ bool WriteEpub(const std::string& path, const std::string& title, const std::str
         "</manifest><spine><itemref idref=\"body\"/></spine></package>";
     return zip.Add("content.opf", opf) && zip.AddFile("chapter.xhtml", xhtml_path) && zip.Finish();
 }
-} // namespace novelia
+} // namespace web_novel

@@ -13,7 +13,7 @@ set(MBEDTLS_TAG "v3.6.2" CACHE STRING "Mbed TLS 版本")
 
 get_filename_component(REPO "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 set(MAIN "${REPO}/main")
-set(NOVELIA "${MAIN}/display/screen/novelia_screen")
+set(WEB_NOVEL "${MAIN}/display/screen/web_novel_screen")
 set(STORAGE "${MAIN}/boards/common/storage")
 set(PROXY "${REPO}/components/proxy_transport")
 set(ESP_COMPAT "${REPO}/tools/ebook/emulator/src/esp_compat")
@@ -57,19 +57,27 @@ target_link_libraries(host_env INTERFACE cjson ZLIB::ZLIB ${MBEDTLS_LIBS})
 
 # 模型与 EPUB 打包
 add_executable(model_test novelia/model_test.cc
-    "${NOVELIA}/novelia_model.cc" "${NOVELIA}/novelia_epub.cc")
-target_include_directories(model_test PRIVATE "${NOVELIA}" "${MAIN}")
-target_compile_options(model_test PRIVATE ${WARNINGS})
+    "${WEB_NOVEL}/web_novel_model.cc" "${WEB_NOVEL}/web_novel_epub.cc"
+    "${WEB_NOVEL}/web_novel_service.cc" "${WEB_NOVEL}/novelia_site.cc"
+    "${WEB_NOVEL}/novalpie_chapter.cc" "${STORAGE}/sd_file.cc"
+    "${PROXY}/transport.cc" "${PROXY}/tls_stream.cc" "${PROXY}/trojan.cc")
+target_include_directories(model_test PRIVATE "${WEB_NOVEL}" "${MAIN}" "${STORAGE}" "${PROXY}/include" "${ESP_COMPAT}")
+target_compile_definitions(model_test PRIVATE ${SD_DEFINES})
+target_compile_options(model_test PRIVATE ${WARNINGS} -ffunction-sections -fdata-sections)
 target_link_libraries(model_test PRIVATE host_env)
+target_link_options(model_test PRIVATE -Wl,--gc-sections)
 
 # 服务层、章节下载、缓存与手机表单
 add_executable(files_test novelia/files_test.cc
-    "${NOVELIA}/novelia_service.cc" "${NOVELIA}/novelia_model.cc" "${NOVELIA}/novelia_epub.cc"
-    "${NOVELIA}/novelia_download.cc" "${NOVELIA}/novelia_cache.cc" "${STORAGE}/sd_file.cc"
+    "${WEB_NOVEL}/web_novel_service.cc" "${WEB_NOVEL}/novelia_site.cc" "${WEB_NOVEL}/novalpie_site.cc"
+    "${WEB_NOVEL}/web_novel_model.cc" "${WEB_NOVEL}/web_novel_epub.cc"
+    "${WEB_NOVEL}/web_novel_download.cc" "${WEB_NOVEL}/web_novel_cache.cc" "${STORAGE}/sd_file.cc"
+    "${WEB_NOVEL}/novalpie_chapter.cc" "${MAIN}/reader/html_content.cc"
     "${PROXY}/transport.cc" "${PROXY}/tls_stream.cc" "${PROXY}/trojan.cc")
 target_include_directories(files_test PRIVATE
-    "${NOVELIA}" "${MAIN}" "${STORAGE}" "${PROXY}/include" "${ESP_COMPAT}")
-target_compile_definitions(files_test PRIVATE ${SD_DEFINES})
+    "${WEB_NOVEL}" "${MAIN}" "${STORAGE}" "${PROXY}/include" "${ESP_COMPAT}"
+    "${REPO}/tools/ebook/emulator/lvgl")
+target_compile_definitions(files_test PRIVATE ${SD_DEFINES} LV_CONF_SKIP=1)
 target_compile_options(files_test PRIVATE ${WARNINGS} -ffunction-sections -fdata-sections)
 target_link_libraries(files_test PRIVATE host_env)
 target_link_options(files_test PRIVATE -Wl,--gc-sections -Wl,--wrap=rename -Wl,--wrap=remove)

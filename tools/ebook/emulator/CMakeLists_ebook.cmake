@@ -60,9 +60,9 @@ ebook_emulator_target(ebook_sim src/main_ebook.c)
 
 option(APP_UI_PREVIEW "Build headless app UI checks" OFF)
 if(APP_UI_PREVIEW)
-    set(NOVELIA "${ESP_MAIN}/display/screen/novelia_screen")
+    set(WEB_NOVEL "${ESP_MAIN}/display/screen/web_novel_screen")
     add_executable(novelia_preview
-        "${CMAKE_CURRENT_SOURCE_DIR}/../../../tests/novelia/ui_preview/preview.cc" "${NOVELIA}/novelia_ui.cc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../../tests/novelia/ui_preview/preview.cc" "${WEB_NOVEL}/web_novel_ui.cc"
         "${ESP_MAIN}/display/screen/settings_screen/settings_common.cc"
         "${ESP_MAIN}/display/ui_qrcode.cc" "${ESP_MAIN}/display/font/font_awesome_30_1.c"
         "${ESP_MAIN}/reader/text_encoding.cc"
@@ -71,7 +71,7 @@ if(APP_UI_PREVIEW)
     target_compile_options(novelia_preview PRIVATE -UNDEBUG)
     target_include_directories(novelia_preview PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../../../tests/novelia/ui_preview/stubs"
         ${EBOOK_INCLUDES} "${ESP_MAIN}" "${ESP_MAIN}/display" "${ESP_MAIN}/display/font"
-        "${ESP_MAIN}/display/screen" "${NOVELIA}" /usr/include/cjson)
+        "${ESP_MAIN}/display/screen" "${WEB_NOVEL}" /usr/include/cjson)
     target_link_libraries(novelia_preview PRIVATE lvgl m)
     set(LINUX_APP "${ESP_MAIN}/display/screen/linux_screen")
     add_executable(linux_preview

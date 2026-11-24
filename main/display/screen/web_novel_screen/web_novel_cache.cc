@@ -1,11 +1,11 @@
-#include "novelia_cache.h"
+#include "web_novel_cache.h"
 #include <cerrno>
 #include <cstdio>
 #include <dirent.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
-namespace novelia {
+namespace web_novel {
 namespace {
 template <typename Visitor>
 void Entries(const std::string& path, CacheUsage& usage, Visitor visit) {
@@ -97,4 +97,4 @@ CacheUsage MeasureCache(const std::string& root) {
 CacheUsage ClearCache(const std::string& root) {
     return VisitCache(root, true);
 }
-} // namespace novelia
+} // namespace web_novel

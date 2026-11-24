@@ -1,5 +1,5 @@
-#include "novelia_ui.h"
-#include "assets/lang_novelia.h"
+#include "web_novel_ui.h"
+#include "assets/lang_web_novel.h"
 #include "fontpack_lvgl.h"
 #include "settings_screen/settings_common.h"
 #include "haptic_feedback.h"
@@ -12,7 +12,7 @@ LV_FONT_DECLARE(font_awesome_30_1);
 #include <algorithm>
 #include <utility>
 
-namespace novelia::ui {
+namespace web_novel::ui {
 namespace {
 constexpr lv_coord_t kPad = UiSx(12);
 constexpr lv_coord_t kGap = UiSy(8);
@@ -110,8 +110,8 @@ void Header(lv_obj_t* content, const Page& page, const Actions& actions) {
     lv_obj_set_flex_grow(status, 1);
     lv_label_set_long_mode(status, LV_LABEL_LONG_DOT);
     const bool secondary = page.view == View::Settings || page.view == View::Login;
-    Link(header, secondary ? Lang::Strings::NOVELIA_BACK : Lang::Strings::NOVELIA_SETTINGS, secondary ? actions.back : actions.settings,
-         secondary || !page.busy);
+    Link(header, secondary ? Lang::Strings::NOVELIA_BACK : Lang::Strings::NOVELIA_SETTINGS,
+         secondary ? actions.back : actions.settings, secondary || !page.busy);
     if (!page.subtitle.empty()) {
         auto* subtitle = Text(content, page.subtitle);
         lv_obj_set_width(subtitle, LV_PCT(100));
@@ -279,8 +279,8 @@ void Settings(lv_obj_t* content, const Page& page, const Actions& actions) {
     auto* choices = Row(reading, kSettingsOptionH);
     for (bool enabled : {true, false}) {
         auto* button = Option(
-            choices, enabled ? Lang::Strings::NOVELIA_ON : Lang::Strings::NOVELIA_OFF, [set = actions.set_prefetch, enabled] { set(enabled); },
-            page.prefetch == enabled);
+            choices, enabled ? Lang::Strings::NOVELIA_ON : Lang::Strings::NOVELIA_OFF,
+            [set = actions.set_prefetch, enabled] { set(enabled); }, page.prefetch == enabled);
         lv_obj_set_width(button, 0);
         lv_obj_set_flex_grow(button, 1);
         if (page.busy)
@@ -292,7 +292,7 @@ void Settings(lv_obj_t* content, const Page& page, const Actions& actions) {
     lv_obj_set_style_pad_top(cache, UiSy(16), 0);
     Text(cache, Lang::Strings::NOVELIA_CACHE_TITLE, true);
     auto* summary = Text(cache, page.cache_summary.empty() ? Lang::Strings::NOVELIA_CACHE_HINT
-                                                        : page.cache_summary);
+                                                           : page.cache_summary);
     FitLeft(summary, DISPLAY_CONTENT_W - 2 * kPad, fontpack_lv_font_ui()->line_height);
     auto* buttons = Row(cache, kSettingsOptionH);
     for (const auto& choice : {
@@ -343,10 +343,11 @@ void Render(lv_obj_t* content, const Page& page, const Actions& actions) {
         Login(content, page, actions);
     else {
         if (page.view == View::Toc) {
-            Translation(content, page, actions);
+            if (actions.set_translation)
+                Translation(content, page, actions);
             ContinueReading(content, page, actions);
         }
         List(content, page, actions);
     }
 }
-} // namespace novelia::ui
+} // namespace web_novel::ui

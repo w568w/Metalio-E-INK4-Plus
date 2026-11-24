@@ -1,12 +1,12 @@
 #pragma once
-#include "assets/lang_novelia.h"
+#include "assets/lang_web_novel.h"
 #include <cJSON.h>
 #include <cstdio>
 #include <memory>
 #include <string>
 #include <vector>
 
-namespace novelia {
+namespace web_novel {
 using Json = std::unique_ptr<cJSON, decltype(&cJSON_Delete)>;
 inline Json Parse(const std::string& text) {
     return Json(cJSON_ParseWithLength(text.data(), text.size()), cJSON_Delete);
@@ -47,10 +47,18 @@ inline std::string Format(const char* format, Args... args) {
 struct Item {
     std::string id, title, provider, novel;
     bool volume = false;
+    std::string resume_chapter{}; // 收藏条目附带的云端续读章节。
 };
-std::vector<Item> Folders(const cJSON* response, std::string* error = nullptr);
-std::vector<Item> Novels(const cJSON* response, std::string* error = nullptr);
-std::vector<Item> Toc(const cJSON* response, std::string* error = nullptr);
+struct CatalogPage {
+    std::vector<Item> items;
+    int pages = 0;
+    bool next = false;
+    std::string error;
+};
+struct Directory {
+    std::vector<Item> items;
+    std::string title, remote, error;
+};
 std::string ResumeChapter(const std::vector<Item>& chapters, const std::string& local,
                           const std::string& remote);
 std::string EscapeXml(const std::string& text);
@@ -70,4 +78,4 @@ inline const char* TranslationTitle(const Translation& translation) {
     return translation.title ? translation.title : Lang::Strings::NOVELIA_TRANSLATION_SOURCE;
 }
 const char* TranslationField(const std::string& mode);
-} // namespace novelia
+} // namespace web_novel

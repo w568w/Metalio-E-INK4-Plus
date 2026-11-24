@@ -1,5 +1,5 @@
-#include "novelia_ui.h"
-#include "assets/lang_novelia.h"
+#include "web_novel_ui.h"
+#include "assets/lang_web_novel.h"
 #include "fontpack_lvgl.h"
 #include "ui_scale.h"
 #include <cassert>
@@ -35,7 +35,7 @@ const char* NOVELIA_PREFETCH = "下一章预取";
 const char* NOVELIA_ON = "开启";
 const char* NOVELIA_OFF = "关闭";
 const char* NOVELIA_PREFETCH_HINT = "提前缓存下一章，方便翻章时快速阅读";
-const char* NOVELIA_SCAN_SETUP = "扫码填写节点配置并登录 Novelia";
+const char* NOVELIA_SCAN_SETUP = "扫码配置代理与账号";
 const char* NOVELIA_OPEN_LOGIN = "打开登录页面";
 const char* NOVELIA_NEW_QR = "重新生成二维码";
 
@@ -118,39 +118,39 @@ int main(int argc, char** argv) {
     lv_obj_set_y(content, top);
     lv_obj_clear_flag(content, LV_OBJ_FLAG_SCROLLABLE);
     std::filesystem::create_directories(argv[2]);
-    novelia::ui::Actions actions;
+    web_novel::ui::Actions actions;
     actions.back = actions.settings = actions.login = actions.logout = actions.refresh =
         actions.continue_reading = actions.measure_cache = actions.clear_cache = [] {};
     actions.set_prefetch = [](bool) {};
     actions.set_translation = [](std::string) {};
-    actions.open = [](const novelia::Item&, int) {};
-    std::vector<novelia::Item> items;
-    novelia::ui::Page page{items};
+    actions.open = [](const web_novel::Item&, int) {};
+    std::vector<web_novel::Item> items;
+    web_novel::ui::Page page{items};
     page.heading = "Novelia"; page.subtitle = "我的收藏夹"; page.username = "读者";
     items = {{"1", "正在阅读", {}, {}, false}, {"2", "想读的故事", {}, {}, false}};
-    novelia::ui::Render(content, page, actions); Snapshot(screen, std::string(argv[2])+"/folders.ppm");
-    page.view = novelia::ui::View::Novels; page.heading = "正在阅读"; page.subtitle = "在线收藏";
+    web_novel::ui::Render(content, page, actions); Snapshot(screen, std::string(argv[2])+"/folders.ppm");
+    page.view = web_novel::ui::View::Novels; page.heading = "正在阅读"; page.subtitle = "在线收藏";
     items.clear();
     for (int i = 0; i < 8; ++i) items.push_back({std::to_string(i), i % 2 ? "在异世界的图书馆寻找那些被时间遗忘的故事与尚未写下结局的旅人们" : "雨后的旅人", {}, {}, false});
     page.count = 3;
-    novelia::ui::Render(content, page, actions); Snapshot(screen, std::string(argv[2])+"/novels.ppm");
+    web_novel::ui::Render(content, page, actions); Snapshot(screen, std::string(argv[2])+"/novels.ppm");
     lv_area_t before; lv_obj_get_coords(lv_obj_get_child(content, 2), &before);
     page.message = "正在读取下一页…"; page.busy = true;
-    novelia::ui::Render(content, page, actions); Snapshot(screen, std::string(argv[2])+"/novels-loading.ppm");
+    web_novel::ui::Render(content, page, actions); Snapshot(screen, std::string(argv[2])+"/novels-loading.ppm");
     lv_area_t after; lv_obj_get_coords(lv_obj_get_child(content, 2), &after);
     assert(before.x1 == after.x1 && before.y1 == after.y1 && before.x2 == after.x2 && before.y2 == after.y2);
     page.message.clear(); page.busy = false;
-    page.view = novelia::ui::View::Toc; page.heading = "小说目录"; page.subtitle = "在异世界的图书馆寻找失落的故事";
+    page.view = web_novel::ui::View::Toc; page.heading = "小说目录"; page.subtitle = "在异世界的图书馆寻找失落的故事";
     page.translation = "sakura"; page.last_chapter = "3"; page.count = 42;
     items.clear(); items.push_back({{}, "第一卷　雨与书页", {}, {}, true});
     for (int i = 1; i < 8; ++i) items.push_back({std::to_string(i), i == 3 ? "雨后的图书馆" : "在旅途中遇见的人们与故事", {}, {}, false});
-    novelia::ui::Render(content, page, actions); Snapshot(screen, std::string(argv[2])+"/directory.ppm");
-    page.view = novelia::ui::View::Settings; page.heading = "Novelia 设置"; page.subtitle.clear(); page.proxy_summary = "Trojan · proxy.example:443";
-    novelia::ui::Render(content, page, actions); Snapshot(screen, std::string(argv[2])+"/settings.ppm");
+    web_novel::ui::Render(content, page, actions); Snapshot(screen, std::string(argv[2])+"/directory.ppm");
+    page.view = web_novel::ui::View::Settings; page.heading = "Novelia 设置"; page.subtitle.clear(); page.proxy_summary = "Trojan · proxy.example:443";
+    web_novel::ui::Render(content, page, actions); Snapshot(screen, std::string(argv[2])+"/settings.ppm");
     page.cache_summary = "已使用 12.3 MB，共 84 个文件";
-    novelia::ui::Render(content, page, actions); Snapshot(screen, std::string(argv[2])+"/settings-cache.ppm");
+    web_novel::ui::Render(content, page, actions); Snapshot(screen, std::string(argv[2])+"/settings-cache.ppm");
     page.busy = true;
-    novelia::ui::Render(content, page, actions); Snapshot(screen, std::string(argv[2])+"/settings-cache-busy.ppm");
+    web_novel::ui::Render(content, page, actions); Snapshot(screen, std::string(argv[2])+"/settings-cache-busy.ppm");
     page.busy = false;
     page.heading = "Novelia settings";
     Lang::Strings::NOVELIA_BACK = "Back";
@@ -186,12 +186,12 @@ int main(int argc, char** argv) {
     Lang::Strings::NOVELIA_CACHE_MEASURE = "Measure cache";
     Lang::Strings::NOVELIA_CACHE_CLEAR = "Clear cache";
     page.cache_summary = "Used 12.3 MB in 84 files";
-    novelia::ui::Render(content, page, actions); Snapshot(screen, std::string(argv[2])+"/settings-cache-en.ppm");
-    page.view = novelia::ui::View::Login; page.heading = "手机登录"; page.subtitle = "手机与设备连接同一 Wi-Fi";
+    web_novel::ui::Render(content, page, actions); Snapshot(screen, std::string(argv[2])+"/settings-cache-en.ppm");
+    page.view = web_novel::ui::View::Login; page.heading = "手机登录"; page.subtitle = "手机与设备连接同一 Wi-Fi";
     page.qr_url = "http://192.168.1.179:8081/0123456789abcdef0123456789abcdef/";
-    novelia::ui::Render(content, page, actions); Snapshot(screen, std::string(argv[2])+"/login.ppm");
-    page.view = novelia::ui::View::Folders; page.heading = "Novelia"; page.subtitle = "我的收藏夹"; page.username.clear(); items.clear(); page.count = 1;
-    novelia::ui::Render(content, page, actions); Snapshot(screen, std::string(argv[2])+"/empty.ppm");
+    web_novel::ui::Render(content, page, actions); Snapshot(screen, std::string(argv[2])+"/login.ppm");
+    page.view = web_novel::ui::View::Folders; page.heading = "Novelia"; page.subtitle = "我的收藏夹"; page.username.clear(); items.clear(); page.count = 1;
+    web_novel::ui::Render(content, page, actions); Snapshot(screen, std::string(argv[2])+"/empty.ppm");
     lv_display_delete(display);
     puts("UI snapshots rendered without a window");
 }

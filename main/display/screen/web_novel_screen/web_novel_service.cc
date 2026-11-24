@@ -1,19 +1,38 @@
-#include "novelia_service.h"
-#include "assets/lang_novelia.h"
+#include "web_novel_service.h"
+#include "assets/lang_web_novel.h"
 #include "assets/lang_screen.h"
-#include "sd_paths.h"
-#include <cstdio>
-#include <cerrno>
-#include <unistd.h>
 #include "sd_file.h"
-#include <strings.h>
+#include "sd_paths.h"
+#include <cerrno>
+#include <cstdio>
 #include <utility>
 #ifdef ESP_PLATFORM
 #include <esp_log.h>
 #endif
-namespace novelia {
+
+namespace web_novel {
 namespace {
-std::string HttpError(int code) {
+constexpr const char* kProxyKeys[] = {"server", "port", "sni", "proxy_password", "proxy_enabled", "skip_cert_verify"};
+constexpr const char* kLegacyNoveliaConfig = SD_APP_ROOT "/novelia/config.json";
+
+void CopyProxyFields(const cJSON* source, cJSON* target, bool include_password) {
+    if (!cJSON_IsObject(source) || !cJSON_IsObject(target))
+        return;
+    for (const char* key : kProxyKeys) {
+        if (!include_password && std::string(key) == "proxy_password")
+            continue;
+        if (const auto* value = cJSON_GetObjectItemCaseSensitive(source, key)) {
+            cJSON_DeleteItemFromObjectCaseSensitive(target, key);
+            cJSON_AddItemToObject(target, key, cJSON_Duplicate(value, true));
+        }
+    }
+}
+} // namespace
+
+std::string Service::SharedProxyPath() {
+    return SD_APP_ROOT "/web_novel/proxy.json";
+}
+std::string Service::HttpError(int code) {
     switch (code) {
     case 0: return {};
     case -EINVAL: return Lang::Strings::NOVELIA_HTTP_INVALID_REQUEST;
@@ -26,25 +45,12 @@ std::string HttpError(int code) {
     default: return Format(Lang::Strings::NOVELIA_CONNECTION_FAILED_FMT, code);
     }
 }
-constexpr const char* kRoot = SD_APP_ROOT "/novelia";
-std::string ApiError(const proxy_transport::Response& response) {
+std::string Service::ApiError(const proxy_transport::Response& response) {
     if (response.error_code)
         return HttpError(response.error_code);
     if (response.status == 401)
         return Lang::Strings::NOVELIA_LOGIN_EXPIRED;
     return Format(Lang::Strings::NOVELIA_REQUEST_FAILED_FMT, response.status);
-}
-constexpr const char* kApi = "https://n.novelia.cc/api";
-constexpr const char* kAuth = "https://auth.novelia.cc/api/v1/auth/";
-std::string Token(std::string body) {
-    auto parsed = Parse(body);
-    if (cJSON_IsString(parsed.get()))
-        return parsed->valuestring;
-    return body;
-}
-} // namespace
-std::string Service::Root() const {
-    return kRoot;
 }
 std::string Service::AccountRoot() const {
     return Root() + "/accounts/" + sd_file::Key(Username());
@@ -55,10 +61,18 @@ bool Service::Init() {
         return false;
     }
     auto saved = Parse(Read(Root() + "/config.json"));
-    if (cJSON_IsObject(saved.get()))
-        config = std::move(saved);
-    if (Translation().empty())
-        Set(config.get(), "translation", kTranslations[0].id);
+    config = cJSON_IsObject(saved.get()) ? std::move(saved) : Object();
+
+    auto shared = Parse(Read(SharedProxyPath()));
+    if (cJSON_IsObject(shared.get())) {
+        proxy_config = std::move(shared);
+    } else {
+        proxy_config = Object();
+        // 兼容旧版：共享代理文件尚未创建时，从 Novelia 旧配置读取已有代理字段。
+        auto legacy = Parse(Read(kLegacyNoveliaConfig));
+        CopyProxyFields(legacy.get(), proxy_config.get(), true);
+    }
+    OnInit();
     return true;
 }
 std::string Service::Read(const std::string& path) {
@@ -89,13 +103,13 @@ bool Service::Write(const std::string& path, const std::string& text) const {
     if (result.Ok()) {
         if (std::remove(backup.c_str()) != 0 && errno != ENOENT) {
 #ifdef ESP_PLATFORM
-            ESP_LOGW("Novelia", "saved; backup cleanup failed errno=%d", errno);
+            ESP_LOGW("WebNovel", "saved; backup cleanup failed errno=%d", errno);
 #endif
         }
         return true;
     }
 #ifdef ESP_PLATFORM
-    ESP_LOGE("Novelia", "save failed: %s errno=%d restore_errno=%d",
+    ESP_LOGE("WebNovel", "save failed: %s errno=%d restore_errno=%d",
              result.stage, result.error, result.rollback_error);
 #endif
     return false;
@@ -109,22 +123,29 @@ bool Service::Save(const std::string& path, const std::string& text) {
 bool Service::Persist() {
     return Save(Root() + "/config.json", Encode(config.get()));
 }
-std::unique_ptr<proxy_transport::Dialer> Service::Dialer(const cJSON* config) {
+bool Service::PersistProxy() {
+    if (!sd_file::EnsurePath(SD_APP_ROOT "/web_novel")) {
+        error = Lang::Strings::NOVELIA_SAVE_FAILED;
+        return false;
+    }
+    return Save(SharedProxyPath(), Encode(proxy_config.get()));
+}
+std::unique_ptr<proxy_transport::Dialer> Service::Dialer(const cJSON* cfg) {
     auto direct = proxy_transport::MakeDirectDialer();
-    if (!cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(config, "proxy_enabled")))
+    if (!cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(cfg, "proxy_enabled")))
         return direct;
     proxy_transport::TrojanOptions options;
     options.server = {
-        Text(config, "server"),
-        static_cast<uint16_t>(cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(config, "port")))};
-    options.password = Text(config, "proxy_password");
-    options.tls.server_name = Text(config, "sni");
+        Text(cfg, "server"),
+        static_cast<uint16_t>(cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(cfg, "port")))};
+    options.password = Text(cfg, "proxy_password");
+    options.tls.server_name = Text(cfg, "sni");
     options.tls.verify_certificate =
-        !cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(config, "skip_cert_verify"));
+        !cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(cfg, "skip_cert_verify"));
     return proxy_transport::MakeTrojanDialer(std::move(options), std::move(direct));
 }
 Json Service::ProxyConfig(const cJSON* input) {
-    auto replacement = Json(cJSON_Duplicate(config.get(), true), cJSON_Delete);
+    auto replacement = Json(cJSON_Duplicate(proxy_config.get(), true), cJSON_Delete);
     for (const char* key : {"server", "sni", "proxy_password"}) {
         auto* value = cJSON_GetObjectItemCaseSensitive(input, key);
         if (cJSON_IsString(value) && (std::string(key) != "proxy_password" || value->valuestring[0]))
@@ -151,12 +172,13 @@ bool Service::Configure(const cJSON* input) {
     auto replacement = ProxyConfig(input);
     if (!replacement)
         return false;
-    auto old = std::move(config);
-    config = std::move(replacement);
-    if (!Persist()) {
-        config = std::move(old);
+    auto old = std::move(proxy_config);
+    proxy_config = std::move(replacement);
+    if (!PersistProxy()) {
+        proxy_config = std::move(old);
         return false;
     }
+    OnProxyChanged();
     return true;
 }
 int Service::NetworkStatus(bool wait_for_network) const {
@@ -175,7 +197,7 @@ bool Service::Ready() {
     return status == 0;
 }
 std::unique_ptr<proxy_transport::Dialer> Service::MakeDialer() const {
-    return Dialer(config.get());
+    return Dialer(proxy_config.get());
 }
 proxy_transport::Response Service::Get(proxy_transport::Dialer& dialer, const std::string& url, size_t limit) {
     proxy_transport::Response response;
@@ -187,108 +209,11 @@ proxy_transport::Response Service::Get(proxy_transport::Dialer& dialer, const st
         response.error_code = -ECANCELED;
     return response;
 }
-bool Service::Login(const std::string& username, const std::string& password) {
-    if (username.empty() || password.empty()) {
-        error = Lang::Strings::NOVELIA_CREDENTIALS_REQUIRED;
-        return false;
-    }
-    if (!Ready())
-        return false;
-    auto body = Object();
-    Set(body.get(), "username", username);
-    Set(body.get(), "password", password);
-    Set(body.get(), "app", "n");
-    auto dialer = Dialer(config.get());
-    auto response = Request(*dialer, "POST", std::string(kAuth) + "login", Encode(body.get()),
-                            {{"Content-Type", "application/json"}});
-    if (response.error_code != 0 || response.status != 200) {
-        error = response.error_code ? HttpError(response.error_code)
-                                    : Format(Lang::Strings::NOVELIA_LOGIN_FAILED_FMT, response.status);
-        return false;
-    }
-    if (cancelled && cancelled()) {
-        error = Lang::Strings::NOVELIA_CANCELLED;
-        return false;
-    }
-    auto token = Token(response.body);
-    if (token.empty() || token.find_first_of("\r\n") != std::string::npos) {
-        error = Lang::Strings::NOVELIA_LOGIN_RESPONSE_INVALID;
-        return false;
-    }
-    std::string refresh;
-    for (const auto& header : response.headers)
-        if (strcasecmp(header.first.c_str(), "set-cookie") == 0) {
-            constexpr char prefix[] = "refresh-token=";
-            constexpr size_t length = sizeof(prefix) - 1;
-            if (header.second.rfind(prefix, 0) == 0)
-                refresh = header.second.substr(length, header.second.find(';') - length);
-        }
-    auto old = Json(cJSON_Duplicate(config.get(), true), cJSON_Delete);
-    Set(config.get(), "username", username);
-    Set(config.get(), "token", token);
-    Set(config.get(), "refresh_token", refresh);
-    if (!Persist()) {
-        config = std::move(old);
-        return false;
-    }
-    return true;
-}
 bool Service::Logout() {
     Set(config.get(), "username", "");
     Set(config.get(), "token", "");
     Set(config.get(), "refresh_token", "");
     return Persist();
-}
-proxy_transport::Response Service::Api(const std::string& method, const std::string& path,
-                                      const std::string& body, bool wait_for_network) {
-    proxy_transport::Response result;
-    result.error_code = NetworkStatus(wait_for_network);
-    if (result.error_code)
-        return result;
-    auto dialer = MakeDialer();
-    auto token = Text(config.get(), "token");
-    std::vector<std::pair<std::string, std::string>> headers{{"Authorization", "Bearer " + token}};
-    // 阅读历史接口用 call.receive<String>() 读取章节 ID，网页端 ky 也发送 text/plain。
-    // 目前仅 read-history 使用 PUT；以后发送 JSON 时需改为显式传入请求头。
-    if (method == "PUT")
-        headers.emplace_back("Content-Type", "text/plain;charset=UTF-8");
-    auto response =
-        Request(*dialer, method, std::string(kApi) + path, body, headers);
-    if (cancelled && cancelled()) {
-        response.error_code = -ECANCELED;
-        return response;
-    }
-    if (response.status == 401 && !Text(config.get(), "refresh_token").empty()) {
-        auto renewed = Request(*dialer, "POST", std::string(kAuth) + "refresh?app=n", {},
-                               {{"Cookie", "refresh-token=" + Text(config.get(), "refresh_token")}});
-        if (cancelled && cancelled()) {
-            response.error_code = -ECANCELED;
-            return response;
-        }
-        if (renewed.status == 200 && renewed.error_code == 0) {
-            auto refreshed = Token(renewed.body);
-            if (!refreshed.empty() && refreshed.find_first_of("\r\n") == std::string::npos) {
-                Set(config.get(), "token", refreshed);
-                Write(Root() + "/config.json", Encode(config.get()));
-                headers.front().second = "Bearer " + refreshed;
-                response = Request(*dialer, method, std::string(kApi) + path, body, headers);
-            }
-        }
-    }
-    return response;
-}
-bool Service::TestProxy(const cJSON* input) {
-    auto trial = ProxyConfig(input);
-    if (!trial || !Ready())
-        return false;
-    auto dialer = Dialer(trial.get());
-    auto response = Request(*dialer, "GET", std::string(kApi) + "/user/favored");
-    if (response.error_code != 0 || response.status < 200 || response.status >= 500) {
-        error = ApiError(response);
-        return false;
-    }
-    // 鉴权拒绝也说明代理及目标 HTTPS 已连通，测试无需登录态。
-    return true;
 }
 Fetched Service::Fetch(const std::string& path, const std::string& cache_key, FetchPolicy policy) {
     auto cache = AccountRoot() + "/snapshots/" + sd_file::Key(cache_key) + ".json";
@@ -296,7 +221,7 @@ Fetched Service::Fetch(const std::string& path, const std::string& cache_key, Fe
         auto saved = Parse(Read(cache));
         if (saved) {
 #ifdef ESP_PLATFORM
-            ESP_LOGI("Novelia", "snapshot cache hit");
+            ESP_LOGI("WebNovel", "snapshot cache hit");
 #endif
             return {std::move(saved), {}};
         }
@@ -325,22 +250,27 @@ bool Service::Prefetch() const {
 }
 std::string Service::PublicConfig() const {
     auto visible = Json(cJSON_Duplicate(config.get(), true), cJSON_Delete);
-    cJSON_AddBoolToObject(visible.get(), "has_proxy_password", !Text(config.get(), "proxy_password").empty());
-    for (const char* key : {"password", "token", "refresh_token", "proxy_password"})
+    for (const char* key : {"password", "token", "refresh_token"})
         cJSON_DeleteItemFromObjectCaseSensitive(visible.get(), key);
+    for (const char* key : kProxyKeys)
+        cJSON_DeleteItemFromObjectCaseSensitive(visible.get(), key);
+    CopyProxyFields(proxy_config.get(), visible.get(), false);
+    cJSON_AddBoolToObject(visible.get(), "has_proxy_password", !Text(proxy_config.get(), "proxy_password").empty());
+    Set(visible.get(), "app_name", AppName());
+    AppendPortalConfig(visible.get());
     return Encode(visible.get());
 }
 std::string Service::ProxySummary() const {
-    if (!cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(config.get(), "proxy_enabled")))
+    if (!cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(proxy_config.get(), "proxy_enabled")))
         return Lang::Strings::NOVELIA_PROXY_DIRECT;
-    auto server = Text(config.get(), "server");
+    auto server = Text(proxy_config.get(), "server");
     if (server.empty())
         return Lang::Strings::NOVELIA_PROXY_UNCONFIGURED;
-    auto* port = cJSON_GetObjectItemCaseSensitive(config.get(), "port");
+    auto* port = cJSON_GetObjectItemCaseSensitive(proxy_config.get(), "port");
     return "Trojan · " + server + (cJSON_IsNumber(port) ? ":" + std::to_string(port->valueint) : "");
 }
 bool Service::SetTranslation(const std::string& mode) {
-    if (!TranslationField(mode))
+    if (!SupportsTranslation() || !TranslationField(mode))
         return false;
     Set(config.get(), "translation", mode);
     return Persist();
@@ -350,26 +280,15 @@ bool Service::SetPrefetch(bool enabled) {
     cJSON_AddBoolToObject(config.get(), "prefetch", enabled);
     return Persist();
 }
-std::string Service::Last(const Item& novel) {
-    return Read(Root() + "/progress/" + sd_file::Key(novel.id) + ".json");
+std::string Service::ProgressPath(const Item& novel) const {
+    return Root() + "/progress/" + sd_file::Key(novel.id) + ".json";
 }
-bool Service::Shown(const Item& novel, const Item& chapter) {
-    error.clear();
-    auto value = Object();
-    Set(value.get(), "chapter", chapter.id);
-    if (!Save(Root() + "/progress/" + sd_file::Key(novel.id) + ".json", Encode(value.get())))
-        return false;
-    if (Text(config.get(), "token").empty())
-        return true;
-    auto response = Api("PUT", "/user/read-history/" + Quote(novel.provider) + "/" + Quote(novel.novel),
-                        chapter.id, false); // 不等待联网。
-    if (response.error_code == -ENETDOWN)
-        return true; // 后台同步仅使用现有连接，离线时保留本地进度。
-    if (response.error_code != 0 || response.status < 200 || response.status >= 300) {
-        error = ApiError(response);
-        return false;
-    }
-    return true;
+std::string Service::Last(const Item& novel) {
+    return Read(ProgressPath(novel));
+}
+std::string Service::Resume(const Item& novel, const Directory& directory) {
+    auto saved = Parse(Last(novel));
+    return ResumeChapter(directory.items, Text(saved.get(), "chapter"), directory.remote);
 }
 FormResult ApplyForm(const cJSON* input, Service& service) {
     const auto action = Text(input, "action");
@@ -382,11 +301,11 @@ FormResult ApplyForm(const cJSON* input, Service& service) {
         result.ok = service.TestProxy(input);
         result.message = Lang::Strings::NOVELIA_PROXY_TEST_OK;
     } else if (action == "login") {
-        result.ok = service.Login(Text(input, "username"), Text(input, "password"));
+        result.ok = service.LoginForm(input);
         result.message = Lang::Strings::NOVELIA_FORM_LOGIN_OK;
     }
     if (!result.ok)
         result.message = service.error.empty() ? Lang::Strings::NOVELIA_FORM_INVALID : service.error;
     return result;
 }
-} // namespace novelia
+} // namespace web_novel

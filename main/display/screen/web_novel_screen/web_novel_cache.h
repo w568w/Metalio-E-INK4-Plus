@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <string>
 
-namespace novelia {
+namespace web_novel {
 struct CacheUsage {
     uint64_t bytes = 0;
     int files = 0;
@@ -12,4 +12,4 @@ struct CacheUsage {
 CacheUsage MeasureCache(const std::string& root);
 // 单次遍历删除缓存，返回未能删除的文件占用；配置与阅读记录不在遍历范围内。
 CacheUsage ClearCache(const std::string& root);
-} // namespace novelia
+} // namespace web_novel
