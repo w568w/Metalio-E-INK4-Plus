@@ -12,7 +12,7 @@ struct Response {
     int error_code = 0; // 0 表示传输成功，失败为负 errno；HTTP 状态码单独保存在 status 中。
     std::string Header(const std::string& name) const;
 };
-// ESP-IDF GET/POST/PUT；timeout_ms 覆盖连接、握手和完整响应，limit 为响应体字节上限。
+// ESP-IDF GET/POST/PUT/DELETE；timeout_ms 覆盖连接、握手和完整响应，limit 为响应体字节上限。
 Response Request(proxy_transport::Dialer& dialer, const std::string& method, const std::string& url,
                  const std::string& body = {},
                  const std::vector<std::pair<std::string, std::string>>& headers = {},

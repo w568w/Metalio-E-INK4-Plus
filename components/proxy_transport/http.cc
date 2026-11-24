@@ -94,7 +94,7 @@ Response Request(proxy_transport::Dialer& dialer, const std::string& method, con
         response.error_code = -EINVAL;
         return response;
     }
-    if (method != "GET" && method != "POST" && method != "PUT") {
+    if (method != "GET" && method != "POST" && method != "PUT" && method != "DELETE") {
         response.error_code = -ENOTSUP;
         return response;
     }
@@ -120,7 +120,8 @@ Response Request(proxy_transport::Dialer& dialer, const std::string& method, con
     config.url = url.c_str();
     config.transport = transport.get();
     config.method = method == "PUT" ? HTTP_METHOD_PUT
-                    : method == "POST" ? HTTP_METHOD_POST : HTTP_METHOD_GET;
+                    : method == "POST" ? HTTP_METHOD_POST
+                    : method == "DELETE" ? HTTP_METHOD_DELETE : HTTP_METHOD_GET;
     config.timeout_ms = timeout_ms;
     config.disable_auto_redirect = true;
     config.event_handler = Transport::Event;

@@ -64,7 +64,14 @@ extern "C" void app_main() {
     dialer.bytes = "HTTP/1.1 200 OK\r\nBroken:";
     result = Request(dialer, "GET", "http://example.test/"); assert(result.error_code == -EPROTO);
     assert(Request(dialer, "GET", "file:///invalid").error_code == -EINVAL);
-    assert(Request(dialer, "DELETE", "http://example.test/").error_code == -ENOTSUP);
+    dialer.bytes = "HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n";
+    result = Request(dialer, "DELETE", "http://example.test/sessions", {},
+                     {{"User-Agent", "Test-App/1"}, {"Authorization", "Bearer test-token"}});
+    assert(result.error_code == 0 && result.status == 204);
+    assert(dialer.request.rfind("DELETE /sessions HTTP/1.1\r\n", 0) == 0);
+    assert(dialer.request.find("User-Agent: Test-App/1\r\n") != std::string::npos);
+    assert(dialer.request.find("Authorization: Bearer test-token\r\n") != std::string::npos);
+    assert(Request(dialer, "PATCH", "http://example.test/").error_code == -ENOTSUP);
     assert(Request(dialer, "GET", "http://example.test/", {}, {{"X-Test", "bad\r\nvalue"}}).error_code == -EINVAL);
     dialer.error = -ECONNRESET;
     assert(Request(dialer, "GET", "http://example.test/").error_code == -ECONNRESET);

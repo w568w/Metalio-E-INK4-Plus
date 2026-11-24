@@ -16,6 +16,8 @@ public:
     /** @brief 创建流式解析器，可选观察锚点对应的正文块位置。 */
     HtmlBlockParser(const std::string& base, const ContentBlockSink& sink, const HtmlAnchorSink& anchors = {})
         : base_(base), anchors_(anchors), sink_(sink) {}
+    // 网络正文允许原始换行和远程图片，EPUB 仍用 ZIP 内路径。
+    void SetWebFragment() { web_fragment_ = true; }
     /** @brief 追加 HTML 数据块并同步输出正文，失败或消费者停止时返回 false。 */
     bool Feed(const uint8_t* data, size_t size);
     /** @brief 结束输入并输出剩余正文，返回处理是否成功。 */
@@ -35,6 +37,7 @@ private:
     bool in_heading_ = false; // 独立 h1 至 h6 段沿用阅读器标题样式
     bool continuation_ = false; // 当前段是否已输出过前序片段
     bool last_space_ = true; // 跨输出片段保留空白合并状态
+    bool web_fragment_ = false;
     char quote_ = 0; // 标签属性引号
 };
 

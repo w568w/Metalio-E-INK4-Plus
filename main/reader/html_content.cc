@@ -217,6 +217,7 @@ bool HtmlBlockParser::Append(char c) {
 
 bool HtmlBlockParser::Text(char c) {
     if (c == '\r') return true;
+    if (web_fragment_ && c == '\n') return Emit(false);
     if (c == '\n' || c == '\t') c = ' ';
     if (c == ' ' && last_space_) return true;
     return Append(c);
@@ -256,14 +257,22 @@ bool HtmlBlockParser::Tag() {
             if (src.empty()) src = ReadAttrValue(begin, end, "xlink:href");
             if (src.empty()) src = ReadAttrValue(begin, end, "href");
             ContentBlock image; image.kind = ContentKind::kImage;
-            image.image_href = NormalizeZipPath(base_, DecodeHtmlEntities(src));
+            src = DecodeHtmlEntities(src);
+            if (web_fragment_) {
+                if (src.rfind("//", 0) == 0)
+                    image.image_href = "https:" + src;
+                else if (src.rfind("https://", 0) == 0)
+                    image.image_href = std::move(src);
+            } else {
+                image.image_href = NormalizeZipPath(base_, src);
+            }
             if (!image.image_href.empty()) {
                 if (!sink_(std::move(image))) return false;
                 ++source_block_; source_offset_ = 0;
             }
         } else if (name == "br") {
             if (!closing) Anchor(begin, end);
-            if (!Append('\n')) return false;
+            if (!(web_fragment_ ? Emit(false) : Append('\n'))) return false;
         } else if (closing && IsBlockEndTag(name)) {
             if (!Emit(false)) return false;
             if (heading) in_heading_ = false;
