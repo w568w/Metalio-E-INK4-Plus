@@ -47,6 +47,7 @@ struct HostToc {
 struct ReaderLaunch {
     reader::BookInfo book;
     StartAt start = StartAt::Saved;
+    std::string boot_context; // 由宿主解释的关机续读信息。
     std::optional<HostToc> host_toc; // 为空时目录来自文档本身。
     std::function<bool(int)> adjacent; // -1 前一项，+1 后一项；true 表示已处理
     std::function<void()> opened;

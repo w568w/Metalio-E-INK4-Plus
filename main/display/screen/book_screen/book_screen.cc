@@ -1,6 +1,7 @@
 #pragma GCC optimize("O1")
 
 #include "book_screen/book_screen.h"
+#include "web_novel_screen/web_novel_screen.h"
 #include "book_screen/book_screen_priv.h"
 #include "book_screen/book_font_runtime.h"
 #include "book_screen/book_geom.h"
@@ -20,6 +21,7 @@
 #include <lvgl.h>
 #include <atomic>
 #include <string>
+#include <utility>
 
 #include "assets/lang_config.h"
 #include "SdCardManager.hpp"
@@ -83,7 +85,7 @@ static void LoadRecentProgress(void* arg) {
     vTaskDelete(nullptr);
 }
 
-static std::string s_boot_resume_path;
+static std::string s_boot_resume_path, s_boot_resume_context;
 
 static lv_obj_t* CreateBookHome(bool continue_latest, const std::string& resume_path = {}) {
     ++s_recent_generation;
@@ -229,10 +231,13 @@ bool BookScreen::LoadBootResume() {
     Settings settings("reader_boot", true);
     s_boot_resume_path = settings.GetString("book");
     if (s_boot_resume_path.empty()) return false;
+    s_boot_resume_context = settings.GetString("host");
     settings.EraseKey("book");
+    settings.EraseKey("host");
     if (!settings.Commit() || !settings.GetString("book").empty()) {
         ESP_LOGE("BookBoot", "boot resume consumption failed; opening home");
         s_boot_resume_path.clear();
+        s_boot_resume_context.clear();
         return false;
     }
     return true;
@@ -245,6 +250,7 @@ lv_obj_t* BookScreen::CreateBootResume() {
         ESP_LOGD("BookBoot", "resume skipped reason=no_record");
         return HomeScreen::Create();
     }
+    auto context = std::exchange(s_boot_resume_context, {});
     sd_access::Transaction transaction;
     const char* reason = nullptr;
     int file_error = 0;
@@ -258,6 +264,7 @@ lv_obj_t* BookScreen::CreateBootResume() {
         ESP_LOGW("BookBoot", "resume unavailable reason=%s errno=%d; opening home", reason, file_error);
         return HomeScreen::Create();
     }
+    if (auto* plugin = WebNovelScreen::RestoreReading(path, context)) return plugin;
     ESP_LOGI("BookBoot", "restoring reader");
     return CreateBookHome(true, path);
 }
@@ -272,7 +279,7 @@ bool BookScreen::PreparePowerOff() {
     if (ReaderWorkersBusy()) return false;
     if (saved.load(std::memory_order_acquire) == 2) return true;
     if (saved.load(std::memory_order_acquire) == 1) return false;
-    std::string path;
+    std::string path, context;
     sd_access::Permit permit;
     if (st.reader.read_scr && st.reader.read_scr == lv_screen_active() &&
         !st.reader.deferred_cleanup && st.reader.session && st.reader.session->IsOpen()) {
@@ -280,14 +287,18 @@ bool BookScreen::PreparePowerOff() {
         if (!st.reader.session->SaveProgress())
             ESP_LOGE("BookBoot", "shutdown progress enqueue failed; retaining last saved position");
         path = st.reader.session->Info().path;
+        if (st.reader.IsHostSession()) context = st.reader.launch.boot_context;
     }
     // Storage 串行队列先完成此前提交的 .pos 写入，再持久化具体书籍的恢复记录。
     saved.store(1, std::memory_order_release);
-    if (!Application::GetInstance().Schedule([path = std::move(path)] {
+    if (!Application::GetInstance().Schedule([path = std::move(path), context = std::move(context)] {
         Settings settings("reader_boot", true);
         if (path.empty()) settings.EraseKey("book");
         else settings.SetString("book", path);
-        const bool ok = settings.Commit() && settings.GetString("book") == path;
+        if (context.empty()) settings.EraseKey("host");
+        else settings.SetString("host", context);
+        const bool ok = settings.Commit() && settings.GetString("book") == path &&
+                        settings.GetString("host") == context;
         if (!ok) ESP_LOGE("BookBoot", "shutdown resume record failed");
         else ESP_LOGI("BookBoot", "shutdown resume saved reader=%d", !path.empty());
         saved.store(2, std::memory_order_release);

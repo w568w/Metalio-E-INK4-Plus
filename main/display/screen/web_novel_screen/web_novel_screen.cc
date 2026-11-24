@@ -7,6 +7,7 @@
 #include "novelia_site.h"
 #include "novalpie_site.h"
 #include "assets/lang_web_novel.h"
+#include "assets/lang_reader.h"
 #include "book_screen/book_external.h"
 #include "book_screen/book_screen.h"
 #include "screen_common.h"
@@ -16,6 +17,7 @@
 #include "board.h"
 #include "power_policy.h"
 #include "sd_access.h"
+#include "sd_paths.h"
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
@@ -33,6 +35,7 @@
 #include <memory>
 #include <sys/stat.h>
 #include <tuple>
+#include <unistd.h>
 
 namespace {
 using namespace web_novel;
@@ -61,6 +64,22 @@ constexpr std::array<SiteDescriptor, static_cast<size_t>(SiteIndex::Count)> kSit
 
 const SiteDescriptor& SiteInfo(SiteIndex index) {
     return kSites[static_cast<size_t>(index)];
+}
+
+const SiteDescriptor* FindSiteById(const std::string& id) {
+    for (const auto& site : kSites)
+        if (id == site.id)
+            return &site;
+    return nullptr;
+}
+
+const SiteDescriptor* FindSiteByChapterPath(const std::string& path) {
+    for (const auto& site : kSites) {
+        const std::string prefix = std::string(SD_APP_ROOT) + "/" + site.id + "/chapters/";
+        if (path.rfind(prefix, 0) == 0)
+            return &site;
+    }
+    return nullptr;
 }
 
 struct Work {
@@ -122,7 +141,10 @@ const ViewSpec& CurrentView() {
 
 void Render();
 void Refresh();
-void OpenChapter(int index, StartAt start = StartAt::Saved);
+struct BootReading {
+    std::string path, chapter, username;
+};
+void OpenChapter(int index, StartAt start = StartAt::Saved, std::string cached_path = {});
 void LoadFolders();
 
 bool TrySubmit(Job action, SiteIndex site, bool needs_sd = true) {
@@ -197,6 +219,10 @@ void Back() {
     } else if (state.ui.view == View::Settings) {
         state.ui.view = state.ui.settings_return;
     } else if (state.ui.view == View::Toc) {
+        if (state.ui.folder.id.empty()) {
+            LoadFolders();
+            return;
+        }
         state.ui.view = View::Novels;
         state.ui.page = 0;
     } else if (state.ui.view == View::Novels) {
@@ -276,14 +302,20 @@ void LoadNovels(bool refresh = false) {
         });
     });
 }
-void LoadToc() {
+void LoadToc(BootReading boot = {}) {
     state.ui.busy = true;
     state.ui.message = Lang::Strings::NOVELIA_LOADING_TOC;
     Repaint();
     unsigned generation = ++state.epoch;
     auto book = state.ui.novel;
-    Submit([generation, book](Service& service) {
-        auto data = service.LoadDirectory(book, FetchPolicy::Refresh);
+    Submit([generation, book, boot = std::move(boot)](Service& service) {
+        const bool restoring = !boot.path.empty();
+        const auto user = service.Username();
+        if (restoring && user != boot.username) {
+            Complete(generation, [] { LoadFolders(); });
+            return;
+        }
+        auto data = service.LoadDirectory(book, restoring ? FetchPolicy::PreferCache : FetchPolicy::Refresh);
         auto& items = data.items;
         const auto& book_title = data.title;
         auto reader_toc = std::make_shared<ReaderToc>();
@@ -291,15 +323,18 @@ void LoadToc() {
         for (const auto& item : items)
             reader_toc->entries.push_back({item.title, !item.volume});
         auto last = service.Resume(book, data);
-        if (service.SyncResumeOnDirectoryLoad() && !last.empty() && last != data.remote)
+        if (!restoring && service.SyncResumeOnDirectoryLoad() && !last.empty() && last != data.remote)
             for (const auto& item : items)
                 if (item.id == last) {
                     service.Shown(book, item);
                     break;
                 }
         const char* resume_source = last.empty() ? "first" : last == data.remote ? "cloud" : "local";
+        auto mode = service.Translation();
+        auto proxy = service.ProxySummary();
+        const bool prefetch = service.Prefetch();
         Complete(generation, [items = std::move(items), reader_toc, error = std::move(data.error), book_title, last,
-                              resume_source] {
+                              resume_source, boot, user, mode, proxy, prefetch] {
             ESP_LOGI("WebNovel", "directory loaded: count=%u resume=%s", (unsigned)items.size(), resume_source);
             state.ui.chapters = items;
             state.ui.reader_toc = reader_toc;
@@ -307,6 +342,18 @@ void LoadToc() {
             state.ui.message = error;
             state.ui.title = book_title;
             state.ui.last_chapter = last;
+            if (!boot.path.empty()) {
+                state.ui.username = user;
+                state.ui.mode = mode;
+                state.ui.proxy_summary = proxy;
+                state.ui.prefetch = prefetch;
+                for (int i = 0; i < static_cast<int>(state.ui.chapters.size()); ++i) {
+                    if (!state.ui.chapters[i].volume && state.ui.chapters[i].id == boot.chapter) {
+                        OpenChapter(i, StartAt::Saved, boot.path);
+                        break;
+                    }
+                }
+            }
         });
     });
 }
@@ -321,7 +368,7 @@ void Refresh() {
     } else if (state.ui.view == View::Toc)
         LoadToc();
 }
-void OpenChapter(int index, StartAt start) {
+void OpenChapter(int index, StartAt start, std::string cached_path) {
     if (state.ui.busy || index < 0 || index >= static_cast<int>(state.ui.chapters.size()) ||
         state.ui.chapters[index].volume)
         return;
@@ -333,9 +380,14 @@ void OpenChapter(int index, StartAt start) {
     unsigned generation = ++state.epoch;
     auto book = state.ui.novel, chapter = state.ui.chapters[index];
     auto translation = state.ui.mode;
-    Submit([generation, book, chapter, translation, index, start](Service& service) {
-        auto result = Download(service, book, chapter, translation);
-        Complete(generation, [result, book, chapter, translation, index, start] {
+    const auto active_site = state.site.load();
+    Submit([generation, book, chapter, translation, index, start, active_site,
+            cached_path = std::move(cached_path)](Service& service) {
+        auto result = cached_path.empty() ? Download(service, book, chapter, translation)
+                                          : Chapter{cached_path, chapter.title};
+        if (!cached_path.empty() && access(cached_path.c_str(), R_OK) != 0)
+            result.error = Lang::Strings::BOOK_OPEN_FAILED_IO;
+        Complete(generation, [result, book, chapter, translation, index, start, active_site] {
             if ((!state.root || lv_screen_active() != state.root) && !BookScreen::IsReadScreenActive())
                 return;
             if (!result.error.empty()) {
@@ -373,6 +425,15 @@ void OpenChapter(int index, StartAt start) {
                 request.book.mtime = info.st_mtime;
             }
             request.start = start;
+            auto context = Object();
+            Set(context.get(), "site", SiteInfo(active_site).id);
+            Set(context.get(), "id", book.id);
+            Set(context.get(), "title", book.title);
+            Set(context.get(), "provider", book.provider);
+            Set(context.get(), "novel", book.novel);
+            Set(context.get(), "chapter", chapter.id);
+            Set(context.get(), "username", state.ui.username);
+            request.boot_context = Encode(context.get());
             request.suspending = CancelPendingWork;
             request.returning = [] {
                 ++state.epoch;
@@ -734,7 +795,7 @@ void Initialize() {
         return;
     }
 }
-lv_obj_t* CreateForSite(SiteIndex site_index) {
+lv_obj_t* CreateForSite(SiteIndex site_index, bool restoring = false) {
     const bool first = !state.initialized;
     Initialize();
     const auto& info = SiteInfo(site_index);
@@ -743,9 +804,9 @@ lv_obj_t* CreateForSite(SiteIndex site_index) {
         StopLogin();
         state.site.store(site_index);
         state.ui = {};
-        if (state.jobs)
+        if (!restoring && state.jobs)
             LoadFolders();
-    } else if (first && state.jobs) {
+    } else if (!restoring && first && state.jobs) {
         LoadFolders();
     }
     auto* screen = lv_obj_create(nullptr);
@@ -810,4 +871,23 @@ lv_obj_t* WebNovelScreen::CreateNovelia() {
 }
 lv_obj_t* WebNovelScreen::CreateNovalpie() {
     return CreateForSite(SiteIndex::Novalpie);
+}
+lv_obj_t* WebNovelScreen::RestoreReading(const std::string& path, const std::string& context) {
+    auto saved = Parse(context);
+    const auto* site = FindSiteById(Text(saved.get(), "site"));
+    if (!site)
+        site = FindSiteByChapterPath(path);
+    if (!site)
+        return nullptr;
+    Item book{Text(saved.get(), "id"), Text(saved.get(), "title"),
+              Text(saved.get(), "provider"), Text(saved.get(), "novel")};
+    auto chapter = Text(saved.get(), "chapter");
+    if (book.id.empty() || chapter.empty())
+        return site->factory();
+    auto* screen = CreateForSite(site->index, true);
+    state.ui.novel = std::move(book);
+    state.ui.view = View::Toc;
+    if (state.jobs)
+        LoadToc({path, std::move(chapter), Text(saved.get(), "username")});
+    return screen;
 }
